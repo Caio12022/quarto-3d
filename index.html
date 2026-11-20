@@ -1,0 +1,4691 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Quarto 3D — Entardecer na Costa</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0c0b10;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      color: #f4eee6;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: radial-gradient(circle at 50% 45%, #231922 0%, #0d0b11 100%);
+      transition: opacity 0.65s ease, visibility 0.65s ease;
+    }
+    #loader.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 200, 145, 0.18);
+      border-top-color: #f3a86b;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loader p {
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(244, 232, 218, 0.78);
+    }
+
+    .hud-top {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+    .title-badge {
+      pointer-events: auto;
+      background: rgba(14, 12, 18, 0.54);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 218, 180, 0.14);
+      border-radius: 14px;
+      padding: 10px 15px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    }
+    .title-badge h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: #f9efe2;
+    }
+    .title-badge span {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: rgba(242, 220, 196, 0.68);
+    }
+
+    .hud-actions {
+      pointer-events: auto;
+      display: flex;
+      gap: 8px;
+    }
+    .icon-btn {
+      background: rgba(14, 12, 18, 0.54);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 218, 180, 0.15);
+      color: #f5ebe0;
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    }
+    .icon-btn:hover {
+      background: rgba(34, 28, 38, 0.78);
+      border-color: rgba(248, 185, 128, 0.4);
+    }
+    .icon-btn:active { transform: scale(0.96); }
+
+    .hud-bottom {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      max-width: calc(100vw - 20px);
+      padding: 6px 9px;
+      background: rgba(14, 12, 18, 0.56);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 218, 180, 0.14);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .cam-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: rgba(245, 232, 218, 0.82);
+      padding: 6px 11px;
+      border-radius: 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+    }
+    .cam-btn:hover {
+      color: #fff;
+      background: rgba(255, 206, 160, 0.11);
+    }
+    .cam-btn.active {
+      color: #181218;
+      background: linear-gradient(135deg, #f7bd85, #e68c57);
+      border-color: rgba(255, 236, 214, 0.5);
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(235, 140, 82, 0.35);
+    }
+    .divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 218, 180, 0.16);
+      margin: 0 2px;
+    }
+    .sun-control {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 6px;
+      font-size: 11px;
+      color: rgba(244, 224, 202, 0.78);
+    }
+    .sun-control input[type="range"] {
+      width: 78px;
+      accent-color: #ef9c61;
+      cursor: pointer;
+    }
+
+    body.ui-hidden .hud-top .title-badge,
+    body.ui-hidden .hud-bottom {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(14px);
+    }
+    body.ui-hidden .hud-top .title-badge {
+      transform: translateY(-10px);
+    }
+
+    @media (max-width: 640px) {
+      .title-badge { padding: 8px 11px; }
+      .title-badge h1 { font-size: 12.5px; }
+      .title-badge span { font-size: 10px; }
+      .cam-btn { padding: 7px 10px; font-size: 11px; }
+      .sun-control { display: none; }
+      .divider { display: none; }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="loader">
+    <div class="spinner"></div>
+    <p>Preparando cena 3D...</p>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <div class="hud-top">
+    <div class="title-badge">
+      <h1>Entardecer na Costa</h1>
+      <span>Arraste para girar · Pinça ou scroll para aproximar</span>
+    </div>
+    <div class="hud-actions">
+      <button id="btn-pause" class="icon-btn" title="Pausar/Retomar animações">Pausar</button>
+      <button id="btn-ui" class="icon-btn" title="Ocultar/Mostrar interface">Limpar tela</button>
+    </div>
+  </div>
+
+  <div class="hud-bottom" id="camera-bar">
+    <button class="cam-btn active" data-cam="overview">Visão Geral</button>
+    <button class="cam-btn" data-cam="girl">Ela (360°)</button>
+    <button class="cam-btn" data-cam="coffee">Xícara de Café</button>
+    <button class="cam-btn" data-cam="window">Vista da Janela</button>
+    <button class="cam-btn" data-cam="room">Interior do Quarto</button>
+    <div class="divider"></div>
+    <label class="sun-control" title="Altura do pôr do sol">
+      <span>Pôr do sol</span>
+      <input id="sun-slider" type="range" min="0" max="100" value="44" />
+    </label>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+    RectAreaLightUniformsLib.init();
+
+    // =========================================================================
+    // 1. UTILITÁRIOS DE RUÍDO E GERADOR PBR COM NORMAL MAPS REAIS (SOBEL)
+    // =========================================================================
+    function hash2(x, y) {
+      const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+      return s - Math.floor(s);
+    }
+
+    function valueNoise2D(x, y) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = x - ix;
+      const fy = y - iy;
+      const ux = fx * fx * (3.0 - 2.0 * fx);
+      const uy = fy * fy * (3.0 - 2.0 * fy);
+      const a = hash2(ix, iy);
+      const b = hash2(ix + 1, iy);
+      const c = hash2(ix, iy + 1);
+      const d = hash2(ix + 1, iy + 1);
+      return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+    }
+
+    function fbm2D(x, y, octaves = 5) {
+      let v = 0.0, amp = 0.5, freq = 1.0;
+      for (let i = 0; i < octaves; i++) {
+        v += amp * valueNoise2D(x * freq, y * freq);
+        freq *= 2.03;
+        amp *= 0.5;
+      }
+      return v;
+    }
+
+    function ridged2D(x, y, octaves = 5) {
+      let v = 0.0, amp = 0.52, freq = 1.0;
+      for (let i = 0; i < octaves; i++) {
+        let n = valueNoise2D(x * freq, y * freq);
+        n = 1.0 - Math.abs(n * 2.0 - 1.0);
+        n = n * n;
+        v += amp * n;
+        freq *= 2.1;
+        amp *= 0.48;
+      }
+      return v;
+    }
+
+    function makeCanvas(w, h) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      return c;
+    }
+
+    // Converte um canvas de mapa de altura em NormalMap real tangente (filtro Sobel)
+    function heightCanvasToNormalTexture(heightCanvas, strength = 2.4, repeatX = 1, repeatY = 1) {
+      const w = heightCanvas.width;
+      const h = heightCanvas.height;
+      const src = heightCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+      const outC = makeCanvas(w, h);
+      const outCtx = outC.getContext('2d');
+      const outImg = outCtx.createImageData(w, h);
+      const dst = outImg.data;
+
+      const sample = (x, y) => {
+        const wx = ((x % w) + w) % w;
+        const wy = ((y % h) + h) % h;
+        return src[(wy * w + wx) * 4] / 255.0;
+      };
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const tl = sample(x - 1, y - 1);
+          const t  = sample(x,     y - 1);
+          const tr = sample(x + 1, y - 1);
+          const l  = sample(x - 1, y);
+          const r  = sample(x + 1, y);
+          const bl = sample(x - 1, y + 1);
+          const b  = sample(x,     y + 1);
+          const br = sample(x + 1, y + 1);
+
+          const dx = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+          const dy = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
+          let nx = -dx * strength;
+          let ny = -dy * strength;
+          let nz = 1.0;
+          const invLen = 1.0 / Math.sqrt(nx * nx + ny * ny + nz * nz);
+          nx *= invLen; ny *= invLen; nz *= invLen;
+
+          const idx = (y * w + x) * 4;
+          dst[idx]     = Math.round((nx * 0.5 + 0.5) * 255);
+          dst[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+          dst[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+          dst[idx + 3] = 255;
+        }
+      }
+      outCtx.putImageData(outImg, 0, 0);
+      const tex = new THREE.CanvasTexture(outC);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(repeatX, repeatY);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    // Textura radial macia para sombras de contato (AO real sob móveis e objetos)
+    const contactShadowTex = (() => {
+      const size = 256;
+      const c = makeCanvas(size, size);
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.04, size / 2, size / 2, size * 0.5);
+      g.addColorStop(0.0, 'rgba(12, 7, 4, 0.72)');
+      g.addColorStop(0.45, 'rgba(14, 8, 5, 0.42)');
+      g.addColorStop(0.78, 'rgba(16, 10, 6, 0.12)');
+      g.addColorStop(1.0, 'rgba(16, 10, 6, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      const tex = new THREE.CanvasTexture(c);
+      return tex;
+    })();
+
+    function createContactShadow(rx, rz, opacity = 0.55) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: contactShadowTex,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      return mesh;
+    }
+
+    // Piso de tábuas de carvalho/nogueira com nós, veios ricos, normalMap e roughnessMap
+    function createWoodFloorTextures() {
+      const size = 1024;
+      const colC = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const rC = makeCanvas(size, size);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const rCtx = rC.getContext('2d');
+
+      const planks = 8;
+      const plankW = size / planks;
+
+      hCtx.fillStyle = '#909090';
+      hCtx.fillRect(0, 0, size, size);
+      rCtx.fillStyle = '#8a8a8a';
+      rCtx.fillRect(0, 0, size, size);
+
+      for (let p = 0; p < planks; p++) {
+        const px = p * plankW;
+        const toneShift = (hash2(p, 11.3) - 0.5) * 28;
+        const baseR = Math.round(122 + toneShift);
+        const baseG = Math.round(82 + toneShift * 0.72);
+        const baseB = Math.round(52 + toneShift * 0.48);
+
+        cCtx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+        cCtx.fillRect(px, 0, plankW, size);
+
+        const jointY = Math.floor(hash2(p, 4.7) * size);
+        const rVal = Math.round(115 + (hash2(p, 71.1) - 0.5) * 42);
+        rCtx.fillStyle = `rgb(${rVal},${rVal},${rVal})`;
+        rCtx.fillRect(px + 2, 0, plankW - 4, size);
+
+        // Veios e fibras finas
+        for (let i = 0; i < 120; i++) {
+          const xOff = px + hash2(p * 37 + i, 2.1) * plankW;
+          const alpha = 0.05 + hash2(i, p * 9.2) * 0.13;
+          const dark = hash2(i + 5, p + 3) > 0.38;
+          cCtx.strokeStyle = dark ? `rgba(38, 20, 10, ${alpha})` : `rgba(184, 138, 92, ${alpha * 0.7})`;
+          cCtx.lineWidth = 0.7 + hash2(i, p) * 2.2;
+          cCtx.beginPath();
+          cCtx.moveTo(xOff, 0);
+          for (let y = 0; y <= size; y += 48) {
+            const wave = Math.sin(y * 0.012 + i * 0.7 + p) * 4.5 + Math.cos(y * 0.025 + i) * 1.4;
+            cCtx.lineTo(Math.max(px + 2, Math.min(px + plankW - 2, xOff + wave)), y);
+          }
+          cCtx.stroke();
+
+          hCtx.strokeStyle = dark ? `rgba(110,110,110,${alpha * 1.4})` : `rgba(168,168,168,${alpha * 1.1})`;
+          hCtx.lineWidth = 1.2;
+          hCtx.beginPath();
+          hCtx.moveTo(xOff, 0);
+          for (let y = 0; y <= size; y += 48) {
+            const wave = Math.sin(y * 0.012 + i * 0.7 + p) * 4.5 + Math.cos(y * 0.025 + i) * 1.4;
+            hCtx.lineTo(Math.max(px + 2, Math.min(px + plankW - 2, xOff + wave)), y);
+          }
+          hCtx.stroke();
+        }
+
+        // Pequeno nó natural de madeira em algumas tábuas
+        if (hash2(p, 19.4) > 0.45) {
+          const kx = px + (0.25 + hash2(p, 3.3) * 0.5) * plankW;
+          const ky = (0.15 + hash2(p, 8.8) * 0.7) * size;
+          const kg = cCtx.createRadialGradient(kx, ky, 1, kx, ky, 12);
+          kg.addColorStop(0, 'rgba(34, 18, 9, 0.62)');
+          kg.addColorStop(0.6, 'rgba(54, 30, 15, 0.25)');
+          kg.addColorStop(1, 'rgba(54, 30, 15, 0.0)');
+          cCtx.fillStyle = kg;
+          cCtx.save();
+          cCtx.translate(kx, ky);
+          cCtx.scale(0.65, 1.9);
+          cCtx.beginPath();
+          cCtx.arc(0, 0, 12, 0, Math.PI * 2);
+          cCtx.fill();
+          cCtx.restore();
+        }
+
+        // Chanfro/friso entre tábuas
+        cCtx.fillStyle = 'rgba(20, 10, 5, 0.80)';
+        cCtx.fillRect(px, 0, 2.8, size);
+        cCtx.fillRect(px, jointY, plankW, 2.4);
+
+        hCtx.fillStyle = '#181818';
+        hCtx.fillRect(px, 0, 3.6, size);
+        hCtx.fillRect(px, jointY, plankW, 3.0);
+
+        rCtx.fillStyle = '#ececec';
+        rCtx.fillRect(px, 0, 3.6, size);
+        rCtx.fillRect(px, jointY, plankW, 3.0);
+      }
+
+      const map = new THREE.CanvasTexture(colC);
+      const normalMap = heightCanvasToNormalTexture(hC, 2.6, 3.2, 3.2);
+      const roughnessMap = new THREE.CanvasTexture(rC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      for (const t of [map, roughnessMap]) {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(3.2, 3.2);
+        t.anisotropy = 8;
+      }
+      return { map, normalMap, roughnessMap };
+    }
+
+    // Madeira nogueira PBR completa (albedo + normalMap + roughnessMap)
+    function createWalnutPBR(baseHex = '#563622', grainHex = '#241209', repeat = 1) {
+      const w = 512, h = 512;
+      const colC = makeCanvas(w, h);
+      const hC = makeCanvas(w, h);
+      const rC = makeCanvas(w, h);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const rCtx = rC.getContext('2d');
+
+      cCtx.fillStyle = baseHex;
+      cCtx.fillRect(0, 0, w, h);
+      hCtx.fillStyle = '#808080';
+      hCtx.fillRect(0, 0, w, h);
+      rCtx.fillStyle = '#989898';
+      rCtx.fillRect(0, 0, w, h);
+
+      for (let i = 0; i < 210; i++) {
+        const y = hash2(i, 3.1) * h;
+        const alpha = 0.08 + hash2(i, 9.7) * 0.19;
+        const lw = 0.7 + hash2(i, 1.4) * 3.0;
+        const isLight = hash2(i, 14.2) > 0.78;
+        cCtx.strokeStyle = isLight ? `rgba(165, 118, 76, ${alpha * 0.65})` : grainHex;
+        cCtx.globalAlpha = isLight ? 1 : alpha;
+        cCtx.lineWidth = lw;
+        cCtx.beginPath();
+        cCtx.moveTo(0, y);
+        for (let x = 0; x <= w; x += 24) {
+          const dy = Math.sin(x * 0.015 + i * 0.5) * 6.5 + Math.cos(x * 0.036 + i) * 2.2;
+          cCtx.lineTo(x, y + dy);
+        }
+        cCtx.stroke();
+
+        hCtx.strokeStyle = isLight ? `rgba(162,162,162,${alpha})` : `rgba(88,88,88,${alpha * 1.3})`;
+        hCtx.lineWidth = lw * 0.8;
+        hCtx.beginPath();
+        hCtx.moveTo(0, y);
+        for (let x = 0; x <= w; x += 24) {
+          const dy = Math.sin(x * 0.015 + i * 0.5) * 6.5 + Math.cos(x * 0.036 + i) * 2.2;
+          hCtx.lineTo(x, y + dy);
+        }
+        hCtx.stroke();
+
+        rCtx.strokeStyle = isLight ? `rgba(128,128,128,${alpha})` : `rgba(182,182,182,${alpha})`;
+        rCtx.lineWidth = lw;
+        rCtx.beginPath();
+        rCtx.moveTo(0, y);
+        for (let x = 0; x <= w; x += 24) {
+          const dy = Math.sin(x * 0.015 + i * 0.5) * 6.5 + Math.cos(x * 0.036 + i) * 2.2;
+          rCtx.lineTo(x, y + dy);
+        }
+        rCtx.stroke();
+      }
+      cCtx.globalAlpha = 1;
+
+      const map = new THREE.CanvasTexture(colC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      const normalMap = heightCanvasToNormalTexture(hC, 1.8, repeat, repeat);
+      const roughnessMap = new THREE.CanvasTexture(rC);
+      for (const t of [map, roughnessMap]) {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeat, repeat);
+        t.anisotropy = 8;
+      }
+      return { map, normalMap, roughnessMap };
+    }
+
+    // Reboco mineral / cimento queimado quente para paredes (com normalMap fino + variação orgânica)
+    function createPlasterPBR() {
+      const size = 512;
+      const col = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const cCtx = col.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const cImg = cCtx.createImageData(size, size);
+      const hImg = hCtx.createImageData(size, size);
+
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const broad = fbm2D(x * 0.014, y * 0.014, 4);
+          const fine = fbm2D(x * 0.085, y * 0.085, 3);
+          const grain = hash2(x, y);
+          const v = broad * 0.60 + fine * 0.28 + grain * 0.12;
+          const idx = (y * size + x) * 4;
+          cImg.data[idx]     = Math.round(216 + (v - 0.5) * 24);
+          cImg.data[idx + 1] = Math.round(202 + (v - 0.5) * 22);
+          cImg.data[idx + 2] = Math.round(186 + (v - 0.5) * 18);
+          cImg.data[idx + 3] = 255;
+
+          const hv = Math.round(128 + (fine * 0.65 + grain * 0.35 - 0.5) * 95);
+          hImg.data[idx] = hImg.data[idx + 1] = hImg.data[idx + 2] = hv;
+          hImg.data[idx + 3] = 255;
+        }
+      }
+      cCtx.putImageData(cImg, 0, 0);
+      hCtx.putImageData(hImg, 0, 0);
+
+      const map = new THREE.CanvasTexture(col);
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(3, 2);
+      const normalMap = heightCanvasToNormalTexture(hC, 1.35, 3, 2);
+      return { map, normalMap };
+    }
+
+    // Tecido PBR de alta fidelidade: linho, tricô canelado (suéter/manta), sarja ou bouclé (tapete)
+    function createFabricPBR(baseRGB, accentRGB, scale = 5, style = 'linen') {
+      const size = 256;
+      const col = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const cCtx = col.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const cImg = cCtx.createImageData(size, size);
+      const hImg = hCtx.createImageData(size, size);
+
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          let w = 0.5;
+          if (style === 'knit') {
+            // Malha de tricô orgânica com pontos em V canelados
+            const colPhase = (x % 8) / 8.0;
+            const rowPhase = ((y + Math.abs(colPhase - 0.5) * 6.0) % 8) / 8.0;
+            const rib = Math.sin(colPhase * Math.PI) * 0.65 + Math.sin(rowPhase * Math.PI) * 0.35;
+            w = rib * 0.8 + hash2(x, y) * 0.2;
+          } else if (style === 'boucle') {
+            // Tapete bouclé macio sem quadrados artificiais!
+            const n1 = fbm2D(x * 0.14, y * 0.14, 3);
+            const n2 = fbm2D(x * 0.035, y * 0.035, 3);
+            const weave = Math.sin(y * 0.8) * 0.14 + Math.sin(x * 0.55) * 0.10;
+            w = Math.min(1, Math.max(0, n1 * 0.58 + n2 * 0.28 + weave + hash2(x, y) * 0.14));
+          } else if (style === 'twill') {
+            // Sarja / jeans diagonal
+            const diag = Math.sin((x + y) * 1.05) * 0.5 + 0.5;
+            const n = fbm2D(x * 0.06, y * 0.06, 2);
+            w = diag * 0.55 + n * 0.30 + hash2(x, y) * 0.15;
+          } else {
+            // Linho natural tramado com irregularidades de fios
+            const warp = Math.sin(x * 1.45 + Math.sin(y * 0.08)) * 0.5 + 0.5;
+            const weft = Math.sin(y * 1.45 + Math.cos(x * 0.08)) * 0.5 + 0.5;
+            const slub = fbm2D(x * 0.04, y * 0.18, 2);
+            w = (warp * 0.45 + weft * 0.45) * 0.72 + slub * 0.18 + hash2(x, y) * 0.10;
+          }
+
+          const idx = (y * size + x) * 4;
+          const jitter = (hash2(x + 7, y + 3) - 0.5) * 10;
+          cImg.data[idx]     = Math.min(255, Math.max(0, Math.round(accentRGB[0] + (baseRGB[0] - accentRGB[0]) * w + jitter)));
+          cImg.data[idx + 1] = Math.min(255, Math.max(0, Math.round(accentRGB[1] + (baseRGB[1] - accentRGB[1]) * w + jitter)));
+          cImg.data[idx + 2] = Math.min(255, Math.max(0, Math.round(accentRGB[2] + (baseRGB[2] - accentRGB[2]) * w + jitter)));
+          cImg.data[idx + 3] = 255;
+
+          const hv = Math.min(255, Math.max(0, Math.round(w * 255)));
+          hImg.data[idx] = hImg.data[idx + 1] = hImg.data[idx + 2] = hv;
+          hImg.data[idx + 3] = 255;
+        }
+      }
+      cCtx.putImageData(cImg, 0, 0);
+      hCtx.putImageData(hImg, 0, 0);
+
+      const map = new THREE.CanvasTexture(col);
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(scale, scale);
+      map.anisotropy = 8;
+      const normalStrength = style === 'knit' ? 2.4 : (style === 'boucle' ? 2.2 : 1.5);
+      const normalMap = heightCanvasToNormalTexture(hC, normalStrength, scale, scale);
+      return { map, normalMap };
+    }
+
+    // Cerâmica artesanal pontilhada (speckled stoneware) para a xícara, pires e vasos
+    function createCeramicPBR(baseHex = '#ede2d2', speckColor = 'rgba(84, 62, 46, 0.34)') {
+      const size = 512;
+      const colC = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const rC = makeCanvas(size, size);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const rCtx = rC.getContext('2d');
+
+      cCtx.fillStyle = baseHex;
+      cCtx.fillRect(0, 0, size, size);
+      hCtx.fillStyle = '#808080';
+      hCtx.fillRect(0, 0, size, size);
+      rCtx.fillStyle = '#4a4a4a';
+      rCtx.fillRect(0, 0, size, size);
+
+      // Anéis sutis de torno de oleiro
+      for (let y = 0; y < size; y += 3) {
+        const a = 0.015 + Math.sin(y * 0.11) * 0.012;
+        cCtx.fillStyle = `rgba(120, 92, 68, ${Math.max(0, a)})`;
+        cCtx.fillRect(0, y, size, 2);
+        const hv = Math.round(128 + Math.sin(y * 0.17) * 14);
+        hCtx.fillStyle = `rgb(${hv},${hv},${hv})`;
+        hCtx.fillRect(0, y, size, 2);
+      }
+
+      // Pintinhas minerais artesanais de argila queimada
+      for (let i = 0; i < 620; i++) {
+        const x = hash2(i, 1.7) * size;
+        const y = hash2(i, 5.9) * size;
+        const rad = 0.6 + hash2(i, 9.3) * 1.9;
+        cCtx.fillStyle = speckColor;
+        cCtx.beginPath();
+        cCtx.arc(x, y, rad, 0, Math.PI * 2);
+        cCtx.fill();
+
+        rCtx.fillStyle = 'rgba(175,175,175,0.65)';
+        rCtx.beginPath();
+        rCtx.arc(x, y, rad * 1.2, 0, Math.PI * 2);
+        rCtx.fill();
+      }
+
+      const map = new THREE.CanvasTexture(colC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      const normalMap = heightCanvasToNormalTexture(hC, 1.1, 1, 1);
+      const roughnessMap = new THREE.CanvasTexture(rC);
+      return { map, normalMap, roughnessMap };
+    }
+
+    // Café quente com crema aveludada e micro-bolhas + normalMap de espuma
+    function createCoffeePBR() {
+      const size = 512;
+      const colC = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const rC = makeCanvas(size, size);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+      const rCtx = rC.getContext('2d');
+      const cx = size / 2;
+
+      const grad = cCtx.createRadialGradient(cx, cx, 12, cx, cx, cx);
+      grad.addColorStop(0.0, '#140904');
+      grad.addColorStop(0.42, '#221007');
+      grad.addColorStop(0.68, '#4e2914');
+      grad.addColorStop(0.84, '#9b6434');
+      grad.addColorStop(0.94, '#c7935b');
+      grad.addColorStop(1.0, '#7e4d24');
+      cCtx.fillStyle = grad;
+      cCtx.fillRect(0, 0, size, size);
+
+      hCtx.fillStyle = '#808080';
+      hCtx.fillRect(0, 0, size, size);
+
+      // Centro mais espelhado (roughness baixo), borda de crema mais aveludada
+      const rGrad = rCtx.createRadialGradient(cx, cx, 10, cx, cx, cx);
+      rGrad.addColorStop(0.0, '#181818');
+      rGrad.addColorStop(0.62, '#2c2c2c');
+      rGrad.addColorStop(0.86, '#7a7a7a');
+      rGrad.addColorStop(1.0, '#9a9a9a');
+      rCtx.fillStyle = rGrad;
+      rCtx.fillRect(0, 0, size, size);
+
+      // Espiral sutil de crema e micro-bolhas
+      for (let i = 0; i < 420; i++) {
+        const ang = hash2(i, 1.3) * Math.PI * 2;
+        const rad = (0.45 + hash2(i, 4.9) * 0.52) * cx;
+        const px = cx + Math.cos(ang) * rad;
+        const py = cx + Math.sin(ang) * rad;
+        const br = 0.8 + hash2(i, 2.7) * 3.1;
+        cCtx.fillStyle = `rgba(226, 178, 122, ${0.10 + hash2(i, 8.2) * 0.24})`;
+        cCtx.beginPath();
+        cCtx.arc(px, py, br, 0, Math.PI * 2);
+        cCtx.fill();
+
+        hCtx.fillStyle = 'rgba(180,180,180,0.45)';
+        hCtx.beginPath();
+        hCtx.arc(px, py, br, 0, Math.PI * 2);
+        hCtx.fill();
+      }
+
+      const map = new THREE.CanvasTexture(colC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      const normalMap = heightCanvasToNormalTexture(hC, 1.2, 1, 1);
+      const roughnessMap = new THREE.CanvasTexture(rC);
+      return { map, normalMap, roughnessMap };
+    }
+
+    // Textura de cabelo com fios verticais naturais + normalMap anisotrópico
+    function createHairPBR() {
+      const size = 512;
+      const colC = makeCanvas(size, size);
+      const hC = makeCanvas(size, size);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+
+      cCtx.fillStyle = '#291a12';
+      cCtx.fillRect(0, 0, size, size);
+      hCtx.fillStyle = '#808080';
+      hCtx.fillRect(0, 0, size, size);
+
+      for (let i = 0; i < 520; i++) {
+        const x = hash2(i, 2.7) * size;
+        const shade = hash2(i, 6.1);
+        const r = Math.round(32 + shade * 46);
+        const g = Math.round(20 + shade * 30);
+        const b = Math.round(14 + shade * 20);
+        cCtx.strokeStyle = `rgba(${r},${g},${b},0.62)`;
+        cCtx.lineWidth = 0.7 + hash2(i, 9.4) * 2.0;
+        cCtx.beginPath();
+        cCtx.moveTo(x, 0);
+        for (let y = 0; y <= size; y += 32) {
+          cCtx.lineTo(x + Math.sin(y * 0.025 + i * 0.3) * 3.5, y);
+        }
+        cCtx.stroke();
+
+        const hv = Math.round(70 + shade * 145);
+        hCtx.strokeStyle = `rgba(${hv},${hv},${hv},0.55)`;
+        hCtx.lineWidth = 1.2;
+        hCtx.beginPath();
+        hCtx.moveTo(x, 0);
+        for (let y = 0; y <= size; y += 32) {
+          hCtx.lineTo(x + Math.sin(y * 0.025 + i * 0.3) * 3.5, y);
+        }
+        hCtx.stroke();
+      }
+      const map = new THREE.CanvasTexture(colC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(3, 2);
+      const normalMap = heightCanvasToNormalTexture(hC, 2.0, 3, 2);
+      return { map, normalMap };
+    }
+
+    // Textura de folha botânica realista (nervura central, veios laterais, variação de clorofila)
+    function createLeafPBR() {
+      const w = 256, h = 512;
+      const colC = makeCanvas(w, h);
+      const hC = makeCanvas(w, h);
+      const cCtx = colC.getContext('2d');
+      const hCtx = hC.getContext('2d');
+
+      const grad = cCtx.createLinearGradient(0, h, 0, 0);
+      grad.addColorStop(0, '#274729');
+      grad.addColorStop(0.5, '#355f34');
+      grad.addColorStop(1, '#46733c');
+      cCtx.fillStyle = grad;
+      cCtx.fillRect(0, 0, w, h);
+
+      hCtx.fillStyle = '#808080';
+      hCtx.fillRect(0, 0, w, h);
+
+      // Manchas orgânicas sutis na lâmina da folha
+      for (let i = 0; i < 65; i++) {
+        const x = hash2(i, 2.2) * w;
+        const y = hash2(i, 8.7) * h;
+        const rad = 12 + hash2(i, 4.1) * 30;
+        const lg = cCtx.createRadialGradient(x, y, 2, x, y, rad);
+        lg.addColorStop(0, hash2(i, 1.1) > 0.5 ? 'rgba(90, 134, 66, 0.16)' : 'rgba(22, 42, 22, 0.16)');
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        cCtx.fillStyle = lg;
+        cCtx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      }
+
+      // Nervura central
+      cCtx.strokeStyle = '#689152';
+      cCtx.lineWidth = 6;
+      cCtx.beginPath();
+      cCtx.moveTo(w / 2, h);
+      cCtx.lineTo(w / 2, 18);
+      cCtx.stroke();
+
+      hCtx.strokeStyle = '#d4d4d4';
+      hCtx.lineWidth = 7;
+      hCtx.beginPath();
+      hCtx.moveTo(w / 2, h);
+      hCtx.lineTo(w / 2, 18);
+      hCtx.stroke();
+
+      // Nervuras secundárias arqueadas
+      for (let i = 1; i <= 9; i++) {
+        const y0 = h - i * 48;
+        for (const side of [-1, 1]) {
+          cCtx.strokeStyle = 'rgba(116, 152, 86, 0.65)';
+          cCtx.lineWidth = 2.4;
+          cCtx.beginPath();
+          cCtx.moveTo(w / 2, y0);
+          cCtx.quadraticCurveTo(w / 2 + side * 56, y0 - 20, w / 2 + side * 112, y0 - 65);
+          cCtx.stroke();
+
+          hCtx.strokeStyle = 'rgba(185,185,185,0.7)';
+          hCtx.lineWidth = 2.6;
+          hCtx.beginPath();
+          hCtx.moveTo(w / 2, y0);
+          hCtx.quadraticCurveTo(w / 2 + side * 56, y0 - 20, w / 2 + side * 112, y0 - 65);
+          hCtx.stroke();
+        }
+      }
+
+      const map = new THREE.CanvasTexture(colC);
+      map.colorSpace = THREE.SRGBColorSpace;
+      const normalMap = heightCanvasToNormalTexture(hC, 1.9, 1, 1);
+      return { map, normalMap };
+    }
+
+    // Quadros emoldurados com arte pictórica rica e passe-partout com sombra interna
+    function createArtworkTexture(variant = 0) {
+      const w = 384, h = 512;
+      const c = makeCanvas(w, h);
+      const ctx = c.getContext('2d');
+
+      // Papel passe-partout creme
+      ctx.fillStyle = '#efe7da';
+      ctx.fillRect(0, 0, w, h);
+
+      // Sombra interna sutil do passe-partout
+      ctx.fillStyle = 'rgba(42, 30, 22, 0.16)';
+      ctx.fillRect(36, 42, w - 72, h - 84);
+      ctx.fillStyle = '#e8dcc9';
+      ctx.fillRect(40, 46, w - 80, h - 92);
+
+      const ix = 40, iy = 46, iw = w - 80, ih = h - 92;
+      if (variant === 0) {
+        // Gravura de paisagem costeira ao crepúsculo
+        const sky = ctx.createLinearGradient(0, iy, 0, iy + ih * 0.56);
+        sky.addColorStop(0, '#2e4159');
+        sky.addColorStop(0.55, '#a86f5c');
+        sky.addColorStop(1, '#e8bc8e');
+        ctx.fillStyle = sky;
+        ctx.fillRect(ix, iy, iw, ih * 0.58);
+
+        ctx.fillStyle = 'rgba(255, 228, 186, 0.85)';
+        ctx.beginPath();
+        ctx.arc(w * 0.58, iy + ih * 0.37, 26, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Camadas de montanhas
+        ctx.fillStyle = '#5c4b52';
+        ctx.beginPath();
+        ctx.moveTo(ix, iy + ih * 0.58);
+        ctx.lineTo(ix + iw * 0.28, iy + ih * 0.38);
+        ctx.lineTo(ix + iw * 0.55, iy + ih * 0.50);
+        ctx.lineTo(ix + iw * 0.82, iy + ih * 0.40);
+        ctx.lineTo(ix + iw, iy + ih * 0.52);
+        ctx.lineTo(ix + iw, iy + ih * 0.58);
+        ctx.fill();
+
+        const sea = ctx.createLinearGradient(0, iy + ih * 0.58, 0, iy + ih);
+        sea.addColorStop(0, '#384e5e');
+        sea.addColorStop(1, '#1d2b36');
+        ctx.fillStyle = sea;
+        ctx.fillRect(ix, iy + ih * 0.58, iw, ih * 0.42);
+
+        ctx.fillStyle = 'rgba(244, 196, 138, 0.5)';
+        for (let i = 0; i < 16; i++) {
+          const rw = 44 - i * 1.9;
+          ctx.fillRect(w * 0.58 - rw / 2 + Math.sin(i) * 4, iy + ih * 0.60 + i * 9, rw, 2.5);
+        }
+      } else if (variant === 1) {
+        // Arte botânica minimalista em tons terrosos
+        ctx.fillStyle = '#d6b48f';
+        ctx.beginPath();
+        ctx.arc(w * 0.52, h * 0.44, 86, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#334034';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(w * 0.46, iy + ih - 24);
+        ctx.quadraticCurveTo(w * 0.52, h * 0.55, w * 0.48, iy + 55);
+        ctx.stroke();
+
+        ctx.fillStyle = '#394c39';
+        for (let i = 0; i < 7; i++) {
+          const y = iy + 95 + i * 36;
+          const side = i % 2 === 0 ? 1 : -1;
+          ctx.save();
+          ctx.translate(w * 0.48, y);
+          ctx.rotate(side * 0.55);
+          ctx.beginPath();
+          ctx.ellipse(side * 30, 0, 30, 10, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      } else {
+        // Minimalista arquitetônico em tons areia/terracota/carvão (para a parede esquerda!)
+        ctx.fillStyle = '#e5d9c7';
+        ctx.fillRect(ix, iy, iw, ih);
+
+        ctx.fillStyle = '#b97252';
+        ctx.beginPath();
+        ctx.arc(ix + iw * 0.50, iy + ih * 0.40, 74, Math.PI, 0);
+        ctx.lineTo(ix + iw * 0.50 + 74, iy + ih * 0.78);
+        ctx.lineTo(ix + iw * 0.50 - 74, iy + ih * 0.78);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#2d333b';
+        ctx.beginPath();
+        ctx.arc(ix + iw * 0.62, iy + ih * 0.58, 44, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#f2e8d9';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(ix + 35, iy + ih * 0.78);
+        ctx.lineTo(ix + iw - 35, iy + ih * 0.78);
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // Página de livro aberto com sombra na lombada e tipografia realista
+    function createBookPageTexture(isRight = false) {
+      const w = 320, h = 420;
+      const c = makeCanvas(w, h);
+      const ctx = c.getContext('2d');
+
+      // Papel creme natural com leve sombreamento na direção da lombada
+      const grad = ctx.createLinearGradient(isRight ? 0 : w, 0, isRight ? w : 0, 0);
+      grad.addColorStop(0.0, '#c8baa2');
+      grad.addColorStop(0.14, '#ebe0cc');
+      grad.addColorStop(0.88, '#f3e9d8');
+      grad.addColorStop(1.0, '#e2d6c0');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Título de capítulo no topo
+      ctx.fillStyle = 'rgba(56, 44, 34, 0.72)';
+      if (!isRight) {
+        ctx.fillRect(w * 0.30, 44, w * 0.40, 5);
+        ctx.fillStyle = 'rgba(135, 92, 62, 0.45)';
+        ctx.fillRect(w * 0.38, 56, w * 0.24, 2);
+      }
+
+      // Linhas de texto em parágrafos
+      ctx.fillStyle = 'rgba(54, 43, 35, 0.62)';
+      const startY = isRight ? 46 : 80;
+      for (let y = startY; y < h - 42; y += 13) {
+        if ((y - startY) % 91 === 78) continue; // quebra de parágrafo
+        const indent = ((y - startY) % 91 === 0) ? 18 : 0;
+        const marginL = isRight ? 38 : 30;
+        const maxW = w - 68 - indent;
+        const isLastLine = ((y - startY) % 91 === 65);
+        const lw = isLastLine ? maxW * (0.45 + hash2(y, 1.3) * 0.25) : maxW * (0.88 + hash2(y, 4.1) * 0.12);
+        ctx.fillRect(marginL + indent, y, lw, 2.4);
+      }
+
+      // Número da página
+      ctx.fillStyle = 'rgba(72, 58, 46, 0.5)';
+      ctx.fillRect(w * 0.47, h - 24, 18, 2.5);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // =========================================================================
+    // 2. RENDERER, CENA, CÂMERA, CONTROLES E PÓS-PROCESSAMENTO CINEMATOGRÁFICO
+    // =========================================================================
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true
+    });
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 820;
+    // 20/11: nitidez de antes (2x no celular)
+    const baseRatio = Math.min(window.devicePixelRatio, isMobile ? 2.0 : 2.25);
+    let curRatio = baseRatio;
+    renderer.setPixelRatio(curRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.94;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#191c2b');
+
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.06, 950);
+    camera.position.set(1.24, 1.42, 1.18);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.rotateSpeed = 0.62;
+    controls.zoomSpeed = 0.78;
+    controls.panSpeed = 0.55;
+    controls.minDistance = 0.22;
+    controls.maxDistance = 5.4;
+    controls.minPolarAngle = 0.22;
+    controls.maxPolarAngle = Math.PI * 0.62;
+    controls.target.set(-0.28, 1.14, -2.18);
+    controls.update();
+
+    // EffectComposer: Bloom cinematográfico sutil + OutputPass (ACES) + Film/Lens grading suave
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5)),
+      0.14,  // strength delicado para halo fotográfico só no sol e reflexos intensos
+      0.48,  // radius suave
+      1.15   // threshold alto: preserva cores ricas do céu e nuvens sem lavar
+    );
+    composer.addPass(bloomPass);
+
+    const outputPass = new OutputPass();
+    composer.addPass(outputPass);
+
+    // Final pass: vinheta óptica sutil 35mm + micro-grão fotográfico + equilíbrio de sombras
+    const filmGradeShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        uTime: { value: 0 },
+        uVignette: { value: 0.24 },
+        uGrain: { value: 0.011 }
+      },
+      vertexShader: /* glsl */`
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform sampler2D tDiffuse;
+        uniform float uTime;
+        uniform float uVignette;
+        uniform float uGrain;
+        varying vec2 vUv;
+
+        float rand(vec2 p) {
+          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        void main() {
+          vec4 tex = texture2D(tDiffuse, vUv);
+          vec3 col = tex.rgb;
+
+          // S-curve cinematográfica muito leve (dá profundidade sem esmagar pretos)
+          col = mix(col, col * col * (3.0 - 2.0 * col), 0.14);
+
+          // Micro-grão orgânico de filme fotográfico (quebra banding de degradês)
+          float g = (rand(vUv * vec2(1280.0, 720.0) + fract(uTime * 0.1)) - 0.5) * uGrain;
+          col += vec3(g);
+
+          // Vinheta óptica suave de lente 35mm
+          vec2 d = (vUv - 0.5) * vec2(1.15, 1.0);
+          float vig = 1.0 - dot(d, d) * uVignette;
+          col *= clamp(vig, 0.72, 1.0);
+
+          gl_FragColor = vec4(max(col, 0.0), tex.a);
+        }
+      `
+    };
+    const filmPass = new ShaderPass(filmGradeShader);
+    composer.addPass(filmPass);
+
+    // =========================================================================
+    // 3. PARÂMETROS DINÂMICOS DO PÔR DO SOL
+    // =========================================================================
+    const sunState = {
+      elevationDeg: 6.0,
+      azimuthDeg: -5.5,
+      dir: new THREE.Vector3(),
+      color: new THREE.Color('#ff9d56'),
+      horizonColor: new THREE.Color('#f0955a'),
+      midSkyColor: new THREE.Color('#8e6274'),
+      zenithColor: new THREE.Color('#1c3154')
+    };
+
+    function computeSunDir(elevDeg, azimDeg) {
+      const phi = THREE.MathUtils.degToRad(elevDeg);
+      const theta = THREE.MathUtils.degToRad(azimDeg);
+      return new THREE.Vector3(
+        Math.sin(theta) * Math.cos(phi),
+        Math.sin(phi),
+        -Math.cos(theta) * Math.cos(phi)
+      ).normalize();
+    }
+    sunState.dir.copy(computeSunDir(sunState.elevationDeg, sunState.azimuthDeg));
+
+    // =========================================================================
+    // 4. CÉU FOTOGRÁFICO COM NUVENS VOLUMÉTRICAS (CIRRUS + CUMULUS RAYMARCH)
+    // =========================================================================
+    const skyUniforms = {
+      uTime: { value: 0 },
+      uSunDir: { value: sunState.dir.clone() },
+      uZenithColor: { value: sunState.zenithColor.clone() },
+      uMidSkyColor: { value: sunState.midSkyColor.clone() },
+      uHorizonColor: { value: sunState.horizonColor.clone() },
+      uSunColor: { value: new THREE.Color('#ffe4bd') }
+    };
+
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: skyUniforms,
+      vertexShader: /* glsl */`
+        varying vec3 vWorldDir;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldDir = normalize(wp.xyz);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform float uTime;
+        uniform vec3 uSunDir;
+        uniform vec3 uZenithColor;
+        uniform vec3 uMidSkyColor;
+        uniform vec3 uHorizonColor;
+        uniform vec3 uSunColor;
+        varying vec3 vWorldDir;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+            u.y
+          );
+        }
+        float fbm(vec2 p) {
+          float v = 0.0;
+          float a = 0.5;
+          mat2 rot = mat2(0.80, -0.60, 0.60, 0.80);
+          for (int i = 0; i < 6; i++) {
+            v += a * noise(p);
+            p = rot * p * 2.04 + vec2(13.7, 9.2);
+            a *= 0.5;
+          }
+          return v;
+        }
+
+        float cloudShape(vec2 uv, float t) {
+          vec2 drift = vec2(t * 0.009, t * 0.003);
+          float warp = fbm(uv * 0.95 + drift * 0.8);
+          float c1 = fbm(uv * 1.25 + drift + vec2(warp * 0.55, -warp * 0.35));
+          float c2 = fbm(uv * 2.90 - drift * 0.7 + vec2(c1 * 0.45));
+          return smoothstep(0.45, 0.80, c1 * 0.72 + c2 * 0.34);
+        }
+
+        void main() {
+          vec3 dir = normalize(vWorldDir);
+          vec3 sDir = normalize(uSunDir);
+          float y = clamp(dir.y, -0.2, 1.0);
+          float h = clamp(dir.y, 0.0, 1.0);
+          float sunDot = max(dot(dir, sDir), 0.0);
+
+          // Gradiente atmosférico Rayleigh-Mie rico (azul cobalto -> malva -> pêssego dourado)
+          vec3 col = mix(uHorizonColor, uMidSkyColor, smoothstep(0.0, 0.22, h));
+          col = mix(col, uZenithColor, smoothstep(0.14, 0.62, h));
+
+          // Faixa quente no horizonte apenas na direção do sol (cores ricas sem estourar!)
+          float azimGlow = pow(sunDot, 2.2) * pow(1.0 - h, 4.2);
+          col += vec3(0.46, 0.19, 0.06) * azimGlow * 0.56;
+
+          // Bruma quente rasante bem junto à linha do mar
+          float belt = exp(-abs(dir.y - 0.014) * 20.0) * (0.22 + 0.78 * pow(sunDot, 2.8));
+          col += vec3(0.36, 0.17, 0.07) * belt * 0.36;
+
+          // Espalhamento de Mie fotográfico (halo dourado rico sem lavar o céu em branco!)
+          float mieWide = pow(sunDot, 12.0) * 0.18;
+          float mieMed  = pow(sunDot, 96.0) * 0.36;
+          float mieCore = pow(sunDot, 680.0) * 0.55;
+          col += vec3(0.98, 0.52, 0.22) * mieWide + vec3(1.0, 0.72, 0.40) * mieMed + uSunColor * mieCore;
+
+          // Disco solar nítido de escala fotográfica natural (sem virar clarão branco)
+          float sunDisc = smoothstep(0.99968, 0.99988, sunDot);
+          col = mix(col, vec3(1.75, 1.38, 0.92), sunDisc);
+
+          // Camada 1: Cirrus altos fibrosos esticados pelo vento
+          if (dir.y > 0.015) {
+            vec2 cirrusUV = dir.xz / (dir.y + 0.28);
+            vec2 stretched = vec2(cirrusUV.x * 0.85, cirrusUV.y * 2.65) + vec2(uTime * 0.005, 0.0);
+            float ci = fbm(stretched * 1.45 + vec2(fbm(stretched * 0.8) * 0.7));
+            float cirrusMask = smoothstep(0.56, 0.84, ci) * smoothstep(0.02, 0.16, dir.y) * smoothstep(0.65, 0.15, dir.y);
+            vec3 cirrusCol = mix(vec3(0.84, 0.56, 0.52), vec3(1.25, 0.88, 0.62), pow(sunDot, 2.2));
+            col = mix(col, cirrusCol, cirrusMask * 0.36);
+          }
+
+          // Camada 2: Stratocumulus volumétricos com sombreamento direcional em 3 passos (Beer-Lambert)
+          if (dir.y > 0.012) {
+            vec2 cloudUV = dir.xz / (dir.y + 0.145);
+            float d0 = cloudShape(cloudUV, uTime);
+            float horizonFade = smoothstep(0.014, 0.125, dir.y) * smoothstep(0.82, 0.18, dir.y);
+            float density = d0 * horizonFade * 0.92;
+
+            if (density > 0.004) {
+              vec2 sunStep = normalize(sDir.xz) * 0.075;
+              float occ = 0.0;
+              occ += cloudShape(cloudUV + sunStep * 1.0, uTime) * 0.50;
+              occ += cloudShape(cloudUV + sunStep * 2.2, uTime) * 0.32;
+              occ += cloudShape(cloudUV + sunStep * 3.8, uTime) * 0.18;
+
+              float transmittance = exp(-occ * 2.15);
+              float silver = pow(sunDot, 6.0) * exp(-density * 1.9) * 0.95;
+
+              vec3 shadowCol = mix(vec3(0.16, 0.15, 0.25), vec3(0.38, 0.24, 0.30), pow(sunDot, 1.8));
+              vec3 litCol    = mix(vec3(0.95, 0.58, 0.40), vec3(1.38, 0.96, 0.62), pow(sunDot, 2.5));
+              vec3 cloudCol  = mix(shadowCol, litCol, clamp(transmittance * 0.88 + silver * 0.55, 0.0, 1.0));
+              // Borda dourada extra voltada ao disco solar
+              cloudCol += vec3(1.15, 0.72, 0.36) * silver * 0.42;
+
+              col = mix(col, cloudCol, density);
+            }
+          }
+
+          if (y < 0.0) {
+            col = mix(col, vec3(0.07, 0.10, 0.16), smoothstep(0.0, -0.05, y));
+          }
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    const skyDome = new THREE.Mesh(new THREE.SphereGeometry(480, 56, 36), skyMat);
+    scene.add(skyDome);
+
+    // =========================================================================
+    // 5. MAR FOTORREALISTA (SWELL + 6 CAMADAS MULTI-DIRECIONAIS + GGX GLITTER)
+    // =========================================================================
+    const oceanUniforms = {
+      uTime: { value: 0 },
+      uSunDir: { value: sunState.dir.clone() },
+      uSunColor: { value: new THREE.Color('#ffbe78') },
+      uHorizonColor: { value: sunState.horizonColor.clone() },
+      uMidSkyColor: { value: sunState.midSkyColor.clone() },
+      uSkyColor: { value: new THREE.Color('#2d3e62') },
+      uDeepWater: { value: new THREE.Color('#091928') },
+      uShallowWater: { value: new THREE.Color('#133548') }
+    };
+
+    const oceanGeo = new THREE.PlaneGeometry(780, 440, 200, 140);
+    oceanGeo.rotateX(-Math.PI / 2);
+
+    const oceanMat = new THREE.ShaderMaterial({
+      uniforms: oceanUniforms,
+      vertexShader: /* glsl */`
+        uniform float uTime;
+        varying vec3 vWorldPos;
+        varying float vWaveH;
+
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          float dist = length(wp.xz - vec2(0.0, -10.0));
+          float damp = smoothstep(380.0, 24.0, dist);
+
+          float w1 = sin(wp.x * 0.08 + wp.z * 0.13 + uTime * 1.05) * 0.22;
+          float w2 = sin(wp.x * -0.14 + wp.z * 0.18 + uTime * 1.38) * 0.14;
+          float w3 = cos(wp.x * 0.21 - wp.z * 0.09 - uTime * 0.85) * 0.09;
+          float h = (w1 + w2 + w3) * damp;
+
+          wp.y += h;
+          vWorldPos = wp.xyz;
+          vWaveH = h;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform float uTime;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunColor;
+        uniform vec3 uHorizonColor;
+        uniform vec3 uMidSkyColor;
+        uniform vec3 uSkyColor;
+        uniform vec3 uDeepWater;
+        uniform vec3 uShallowWater;
+
+        varying vec3 vWorldPos;
+        varying float vWaveH;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+            u.y
+          );
+        }
+
+        // Ondas naturais multi-direcionais (sem listras horizontais artificiais)
+        float waveHeight(vec2 p) {
+          float t = uTime;
+          mat2 r1 = mat2(0.86, -0.50, 0.50, 0.86);
+          mat2 r2 = mat2(0.60, 0.80, -0.80, 0.60);
+          float h = 0.0;
+          vec2 p1 = r1 * p;
+          vec2 p2 = r2 * p;
+          h += (noise(p1 * 0.16 + vec2(t * 0.24, t * 0.16)) - 0.5) * 0.34;
+          h += (noise(p2 * 0.34 - vec2(t * 0.32, -t * 0.22)) - 0.5) * 0.19;
+          h += (noise(p  * 0.78 + vec2(-t * 0.42, t * 0.29)) - 0.5) * 0.10;
+          h += (noise(p1 * 1.75 + vec2(t * 0.58, -t * 0.38)) - 0.5) * 0.048;
+          h += (noise(p2 * 3.60 - vec2(t * 0.72, t * 0.45)) - 0.5) * 0.020;
+          return h;
+        }
+
+        // GGX microfacet specular para glitter fotográfico do pôr do sol
+        float ggxSpec(vec3 N, vec3 V, vec3 L, float rough) {
+          vec3 H = normalize(L + V);
+          float a = rough * rough;
+          float a2 = a * a;
+          float NdotH = max(dot(N, H), 0.0);
+          float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+          return a2 / max(3.14159 * d * d, 0.0001);
+        }
+
+        void main() {
+          vec2 p = vWorldPos.xz;
+          float dist = length(vWorldPos - cameraPosition);
+          float eps = mix(0.14, 0.85, clamp(dist / 260.0, 0.0, 1.0));
+
+          float hC = waveHeight(p);
+          float hX = waveHeight(p + vec2(eps, 0.0));
+          float hZ = waveHeight(p + vec2(0.0, eps));
+          vec3 N = normalize(vec3(hC - hX, eps * 1.75, hC - hZ));
+
+          vec3 V = normalize(cameraPosition - vWorldPos);
+          vec3 L = normalize(uSunDir);
+          vec3 R = reflect(-V, N);
+
+          float NdotV = max(dot(N, V), 0.001);
+          float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 5.0);
+
+          // Reflexo fiel do gradiente do céu + nuvens refletidas na água
+          float reflY = clamp(R.y, 0.0, 1.0);
+          vec3 skyRefl = mix(uHorizonColor * 0.94, uMidSkyColor, smoothstep(0.0, 0.24, reflY));
+          skyRefl = mix(skyRefl, uSkyColor, smoothstep(0.20, 0.62, reflY));
+          float sunAlign = pow(max(dot(R, L), 0.0), 4.5);
+          skyRefl += uSunColor * sunAlign * 0.42;
+
+          // Sombreamento sutil refletido das montanhas nas margens laterais da baía
+          float bayShade = smoothstep(22.0, 88.0, abs(p.x)) * smoothstep(240.0, 75.0, dist);
+          skyRefl *= (1.0 - bayShade * 0.42);
+
+          // Subsurface scattering sutil nas cristas iluminadas contra o sol
+          float crest = smoothstep(0.04, 0.34, vWaveH + hC * 0.45);
+          float sss = pow(max(dot(-V, L), 0.0), 3.0) * crest * 0.35;
+          vec3 waterBase = mix(uDeepWater, uShallowWater, crest * 0.52) + vec3(0.12, 0.24, 0.22) * sss;
+
+          vec3 col = mix(waterBase, skyRefl, clamp(fresnel * 0.90, 0.14, 0.94));
+
+          // Caminho dourado GGX (brilho amplo suave + centenas de centelhas finas)
+          float specBroad = ggxSpec(N, V, L, 0.20) * 0.14;
+          float specGlint = ggxSpec(N, V, L, 0.048) * 0.045;
+          col += uSunColor * (specBroad + min(specGlint, 2.2));
+
+          // Espuma sutil nas cristas mais altas e próximas
+          float foamMask = smoothstep(0.24, 0.44, hC) * smoothstep(130.0, 20.0, dist);
+          col = mix(col, mix(vec3(0.84, 0.78, 0.74), uHorizonColor, 0.42), foamMask * 0.22);
+
+          // Integração atmosférica suave na linha do horizonte
+          float horizonBlend = smoothstep(200.0, 425.0, dist);
+          col = mix(col, uHorizonColor * 0.86, horizonBlend * 0.86);
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    const oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+    oceanMesh.position.set(0, -8.8, -218);
+    scene.add(oceanMesh);
+
+    // =========================================================================
+    // 6. MONTANHAS COSTEIRAS COM RELEVO ROCHOSO, VEGETAÇÃO E ESPUMA COSTEIRA
+    // =========================================================================
+    const mountainUniforms = {
+      uSunDir: { value: sunState.dir.clone() },
+      uSunColor: { value: new THREE.Color('#ffaa68') },
+      uHorizonColor: { value: sunState.horizonColor.clone() },
+      uSkyAmbient: { value: new THREE.Color('#3b4a6e') }
+    };
+
+    function createMountainMaterial(hazeStrength = 0.32) {
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          uSunDir: mountainUniforms.uSunDir,
+          uSunColor: mountainUniforms.uSunColor,
+          uHorizonColor: mountainUniforms.uHorizonColor,
+          uSkyAmbient: mountainUniforms.uSkyAmbient,
+          uHazeStrength: { value: hazeStrength }
+        },
+        vertexShader: /* glsl */`
+          varying vec3 vWorldPos;
+          varying vec3 vWorldNormal;
+          varying float vHeight;
+          void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPos = wp.xyz;
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+            vHeight = wp.y;
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }
+        `,
+        fragmentShader: /* glsl */`
+          uniform vec3 uSunDir;
+          uniform vec3 uSunColor;
+          uniform vec3 uHorizonColor;
+          uniform vec3 uSkyAmbient;
+          uniform float uHazeStrength;
+
+          varying vec3 vWorldPos;
+          varying vec3 vWorldNormal;
+          varying float vHeight;
+
+          float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+          }
+          float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(
+              mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+              u.y
+            );
+          }
+          float fbm(vec2 p) {
+            float v = 0.0, a = 0.5;
+            mat2 m = mat2(0.8, -0.6, 0.6, 0.8);
+            for (int i = 0; i < 4; i++) {
+              v += a * noise(p);
+              p = m * p * 2.08;
+              a *= 0.5;
+            }
+            return v;
+          }
+
+          void main() {
+            vec3 baseN = normalize(vWorldNormal);
+            vec3 L = normalize(uSunDir);
+            vec3 V = normalize(cameraPosition - vWorldPos);
+
+            // Perturbação detalhada de normal (rochas estratificadas + textura de floresta)
+            vec2 rp = vWorldPos.xz * 0.19;
+            float d0 = fbm(rp);
+            float dx = fbm(rp + vec2(0.18, 0.0)) - d0;
+            float dz = fbm(rp + vec2(0.0, 0.18)) - d0;
+            float strata = sin(vHeight * 0.85 + d0 * 4.0) * 0.08;
+            vec3 N = normalize(baseN + vec3(-dx * 1.45, strata, -dz * 1.45));
+
+            float slope = 1.0 - clamp(N.y, 0.0, 1.0);
+            float canopy = fbm(vWorldPos.xz * 0.58);
+
+            // Bioma rico de costa montanhosa: rocha úmida na base, mata densa nas encostas, granito nos cumes
+            vec3 wetRock = vec3(0.14, 0.13, 0.15);
+            vec3 granite = mix(vec3(0.24, 0.22, 0.25), vec3(0.36, 0.31, 0.30), d0);
+            vec3 forest  = mix(vec3(0.08, 0.17, 0.10), vec3(0.18, 0.27, 0.14), canopy);
+
+            float rockMask = smoothstep(0.24, 0.56, slope + d0 * 0.22);
+            float highMask = smoothstep(16.0, 42.0, vHeight + d0 * 8.0);
+            vec3 albedo = mix(forest, granite, clamp(rockMask * 0.88 + highMask * 0.62, 0.0, 1.0));
+            albedo = mix(wetRock, albedo, smoothstep(-9.2, -5.0, vHeight));
+
+            // Iluminação física com luz solar rasante, bounce do céu e micro-AO de vales
+            float NdotL = max(dot(N, L), 0.0);
+            float wrap = max((dot(N, L) + 0.44) / 1.44, 0.0);
+            float valleyAO = 0.66 + 0.34 * smoothstep(-6.0, 26.0, vHeight) * (0.6 + 0.4 * d0);
+            vec3 direct = uSunColor * (NdotL * 1.55 + pow(NdotL, 3.0) * 0.38);
+            vec3 skyFill = mix(vec3(0.26, 0.24, 0.38), uSkyAmbient, 0.58);
+            vec3 ambient = skyFill * (0.64 + 0.36 * max(N.y, 0.0)) * valleyAO;
+
+            // Rim light dourado nas cristas contra o sol (realça o recorte das montanhas!)
+            float rim = pow(1.0 - max(dot(N, V), 0.0), 2.8) * pow(max(dot(-V, L), 0.0), 2.0) * smoothstep(-4.0, 12.0, vHeight);
+            vec3 col = albedo * (ambient + direct * wrap) + uSunColor * rim * 0.32;
+
+            // Linha sutil de arrebentação/espuma branca onde a encosta mergulha no mar (y ≈ -8.8)
+            float shoreFoam = exp(-abs(vHeight - (-8.65)) * 2.4) * (0.55 + 0.45 * noise(vWorldPos.xz * 0.6));
+            col = mix(col, mix(vec3(0.84, 0.78, 0.74), uHorizonColor, 0.45), shoreFoam * 0.62);
+
+            // Perspectiva aérea realista (dá profundidade entre cadeias sem virar nevoeiro leitoso)
+            float dist = length(vWorldPos - cameraPosition);
+            float aerial = clamp((dist - 50.0) / 295.0, 0.0, 1.0) * uHazeStrength;
+            vec3 hazeCol = mix(vec3(0.36, 0.29, 0.42), uHorizonColor * 0.88, 0.62);
+            col = mix(col, hazeCol, aerial);
+
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      });
+    }
+
+    function buildMountainRange({ width, depth, segX, segZ, heightScale, seed, ridgeProfile, pos, haze }) {
+      const geo = new THREE.PlaneGeometry(width, depth, segX, segZ);
+      geo.rotateX(-Math.PI / 2);
+      const posAttr = geo.attributes.position;
+
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const z = posAttr.getZ(i);
+        const nx = x / (width * 0.5);
+        const nz = z / (depth * 0.5);
+
+        const envX = Math.max(0, 1.0 - nx * nx);
+        const envZ = Math.max(0, 1.0 - nz * nz);
+        const env = Math.pow(envX, 1.32) * Math.pow(envZ, 1.38);
+
+        const shape = ridgeProfile(nx, nz);
+        const r = ridged2D(x * 0.017 + seed, z * 0.017 - seed * 0.7, 5);
+        const f = fbm2D(x * 0.032 - seed, z * 0.032 + seed, 4);
+        const h = (r * 0.60 + f * 0.45) * heightScale * env * shape;
+        posAttr.setY(i, h - 1.2);
+      }
+      geo.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geo, createMountainMaterial(haze));
+      mesh.position.copy(pos);
+      scene.add(mesh);
+      return mesh;
+    }
+
+    // Promontório imponente à direita
+    buildMountainRange({
+      width: 175, depth: 112, segX: 120, segZ: 74, heightScale: 62, seed: 3.7,
+      ridgeProfile: (nx, nz) => 0.44 + 0.82 * Math.exp(-Math.pow((nx - 0.14) * 1.85, 2)) * (1.0 - nz * 0.2),
+      pos: new THREE.Vector3(92, -10.2, -128),
+      haze: 0.24
+    });
+
+    // Montanha costeira majestosa à esquerda
+    buildMountainRange({
+      width: 170, depth: 108, segX: 120, segZ: 72, heightScale: 60, seed: 11.4,
+      ridgeProfile: (nx) => 0.44 + 0.82 * Math.exp(-Math.pow((nx + 0.16) * 1.75, 2)),
+      pos: new THREE.Vector3(-98, -10.2, -134),
+      haze: 0.25
+    });
+
+    // Cordilheira distante à direita (2ª camada atmosférica)
+    buildMountainRange({
+      width: 255, depth: 125, segX: 120, segZ: 64, heightScale: 84, seed: 22.9,
+      ridgeProfile: (nx) => 0.42 + 0.88 * Math.exp(-Math.pow((nx - 0.14) * 1.55, 2)),
+      pos: new THREE.Vector3(110, -11.2, -232),
+      haze: 0.42
+    });
+
+    // Cordilheira distante à esquerda (deixando o corredor central do mar aberto para o pôr do sol!)
+    buildMountainRange({
+      width: 245, depth: 118, segX: 115, segZ: 60, heightScale: 78, seed: 35.1,
+      ridgeProfile: (nx) => 0.40 + 0.86 * Math.exp(-Math.pow((nx + 0.20) * 1.65, 2)),
+      pos: new THREE.Vector3(-128, -11.2, -244),
+      haze: 0.44
+    });
+
+    // Ilhota rochosa pitoresca na lateral direita da baía
+    buildMountainRange({
+      width: 36, depth: 26, segX: 44, segZ: 34, heightScale: 13.5, seed: 51.2,
+      ridgeProfile: () => 1.0,
+      pos: new THREE.Vector3(42, -9.8, -172),
+      haze: 0.30
+    });
+
+    // Varanda externa realista (tábuas de deck individuais + guarda-corpo elegante com corrimão de madeira)
+    const terraceGroup = new THREE.Group();
+    const deckWoodPBR = createWalnutPBR('#4c3422', '#23140b', 2);
+    const deckMat = new THREE.MeshStandardMaterial({
+      map: deckWoodPBR.map,
+      normalMap: deckWoodPBR.normalMap,
+      normalScale: new THREE.Vector2(0.7, 0.7),
+      roughnessMap: deckWoodPBR.roughnessMap,
+      roughness: 0.78
+    });
+    for (let i = 0; i < 10; i++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.045, 0.185), deckMat);
+      plank.position.set(0, -0.02, -3.52 - i * 0.20);
+      terraceGroup.add(plank);
+    }
+
+    const railMetalMat = new THREE.MeshStandardMaterial({ color: '#242022', roughness: 0.38, metalness: 0.78 });
+    const railWoodMat = new THREE.MeshStandardMaterial({
+      map: deckWoodPBR.map,
+      normalMap: deckWoodPBR.normalMap,
+      roughness: 0.56
+    });
+    const topHandrail = new THREE.Mesh(new RoundedBoxGeometry(8.2, 0.048, 0.075, 3, 0.012), railWoodMat);
+    topHandrail.position.set(0, 0.65, -5.28);
+    terraceGroup.add(topHandrail);
+
+    // Cabos tensionados finos de aço inoxidável no guarda-corpo (muito mais limpo e arquitetônico!)
+    for (const cy of [0.22, 0.36, 0.50]) {
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 8.1, 8), railMetalMat);
+      cable.rotation.z = Math.PI / 2;
+      cable.position.set(0, cy, -5.28);
+      terraceGroup.add(cable);
+    }
+    for (let x = -3.6; x <= 3.6; x += 1.2) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.68, 0.036), railMetalMat);
+      post.position.set(x, 0.32, -5.28);
+      terraceGroup.add(post);
+    }
+    scene.add(terraceGroup);
+
+    // =========================================================================
+    // 7. MATERIAIS PBR DO QUARTO (NORMAL MAPS + ROUGHNESS MAPS REAIS)
+    // =========================================================================
+    const woodFloorPBR = createWoodFloorTextures();
+    const woodFloorMat = new THREE.MeshStandardMaterial({
+      map: woodFloorPBR.map,
+      normalMap: woodFloorPBR.normalMap,
+      normalScale: new THREE.Vector2(0.75, 0.75),
+      roughnessMap: woodFloorPBR.roughnessMap,
+      roughness: 0.46,
+      metalness: 0.04
+    });
+
+    const walnutPBR = createWalnutPBR('#5a3924', '#26130a', 1);
+    const walnutMat = new THREE.MeshStandardMaterial({
+      map: walnutPBR.map,
+      normalMap: walnutPBR.normalMap,
+      normalScale: new THREE.Vector2(0.6, 0.6),
+      roughnessMap: walnutPBR.roughnessMap,
+      roughness: 0.46,
+      metalness: 0.04
+    });
+
+    const darkWoodPBR = createWalnutPBR('#382216', '#190d07', 1);
+    const darkWoodMat = new THREE.MeshStandardMaterial({
+      map: darkWoodPBR.map,
+      normalMap: darkWoodPBR.normalMap,
+      normalScale: new THREE.Vector2(0.5, 0.5),
+      roughnessMap: darkWoodPBR.roughnessMap,
+      roughness: 0.50,
+      metalness: 0.05
+    });
+
+    const warmOakPBR = createWalnutPBR('#855d3d', '#4f331d', 1);
+    const warmOakMat = new THREE.MeshStandardMaterial({
+      map: warmOakPBR.map,
+      normalMap: warmOakPBR.normalMap,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughnessMap: warmOakPBR.roughnessMap,
+      roughness: 0.54,
+      metalness: 0.02
+    });
+
+    const plasterPBR = createPlasterPBR();
+    const wallMat = new THREE.MeshStandardMaterial({
+      map: plasterPBR.map,
+      normalMap: plasterPBR.normalMap,
+      normalScale: new THREE.Vector2(0.45, 0.45),
+      color: '#e6d9ca',
+      roughness: 0.90,
+      metalness: 0.0
+    });
+
+    const accentWallMat = new THREE.MeshStandardMaterial({
+      map: plasterPBR.map,
+      normalMap: plasterPBR.normalMap,
+      normalScale: new THREE.Vector2(0.48, 0.48),
+      color: '#d5c4b0',
+      roughness: 0.91
+    });
+
+    const ceilingMat = new THREE.MeshStandardMaterial({
+      map: plasterPBR.map,
+      color: '#eae1d5',
+      roughness: 0.93
+    });
+
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: '#d4a65e',
+      roughness: 0.24,
+      metalness: 0.90
+    });
+
+    const blackMetalMat = new THREE.MeshStandardMaterial({
+      color: '#232024',
+      roughness: 0.38,
+      metalness: 0.78
+    });
+
+    const creamLinenPBR = createFabricPBR([236, 227, 213], [214, 202, 186], 7, 'linen');
+    const creamLinenMat = new THREE.MeshPhysicalMaterial({
+      map: creamLinenPBR.map,
+      normalMap: creamLinenPBR.normalMap,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 0.91,
+      sheen: 0.25,
+      sheenRoughness: 0.85,
+      sheenColor: new THREE.Color('#fff2e0')
+    });
+
+    const terracottaPBR = createFabricPBR([176, 98, 69], [136, 68, 46], 8, 'knit');
+    const terracottaMat = new THREE.MeshPhysicalMaterial({
+      map: terracottaPBR.map,
+      normalMap: terracottaPBR.normalMap,
+      normalScale: new THREE.Vector2(0.85, 0.85),
+      roughness: 0.93,
+      sheen: 0.35,
+      sheenRoughness: 0.82,
+      sheenColor: new THREE.Color('#f5b493')
+    });
+
+    const oliveFabricPBR = createFabricPBR([92, 104, 86], [70, 82, 65], 7, 'linen');
+    const oliveFabricMat = new THREE.MeshPhysicalMaterial({
+      map: oliveFabricPBR.map,
+      normalMap: oliveFabricPBR.normalMap,
+      normalScale: new THREE.Vector2(0.65, 0.65),
+      roughness: 0.90,
+      sheen: 0.28,
+      sheenColor: new THREE.Color('#b6c2a8')
+    });
+
+    const rugPBR = createFabricPBR([212, 198, 178], [182, 166, 144], 9, 'boucle');
+    const rugMat = new THREE.MeshStandardMaterial({
+      map: rugPBR.map,
+      normalMap: rugPBR.normalMap,
+      normalScale: new THREE.Vector2(1.0, 1.0),
+      roughness: 0.97
+    });
+
+    // =========================================================================
+    // 8. ARQUITETURA DO QUARTO (DETALHES DE BOISERIE, GUARNIÇÕES, AO DE CANTOS)
+    // =========================================================================
+    const roomGroup = new THREE.Group();
+    scene.add(roomGroup);
+
+    const W = 6.8;
+    const D = 7.0;
+    const H = 3.15;
+    const zNorth = -3.2;
+    const zSouth = 3.8;
+    const xWest = -3.4;
+    const xEast = 3.4;
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), woodFloorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, (zNorth + zSouth) * 0.5);
+    floor.receiveShadow = true;
+    roomGroup.add(floor);
+
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W, D), ceilingMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, H, (zNorth + zSouth) * 0.5);
+    roomGroup.add(ceiling);
+
+    // Vigas estruturais de madeira nobre no teto com chanfro sutil
+    for (let z = -2.4; z <= 3.0; z += 1.35) {
+      const beam = new THREE.Mesh(new RoundedBoxGeometry(W, 0.13, 0.15, 2, 0.012), warmOakMat);
+      beam.position.set(0, H - 0.065, z);
+      beam.castShadow = true;
+      beam.receiveShadow = true;
+      roomGroup.add(beam);
+    }
+
+    // Paredes
+    const wallWest = new THREE.Mesh(new THREE.BoxGeometry(0.18, H, D), accentWallMat);
+    wallWest.position.set(xWest - 0.09, H / 2, (zNorth + zSouth) * 0.5);
+    wallWest.receiveShadow = true;
+    roomGroup.add(wallWest);
+
+    const wallEast = new THREE.Mesh(new THREE.BoxGeometry(0.18, H, D), wallMat);
+    wallEast.position.set(xEast + 0.09, H / 2, (zNorth + zSouth) * 0.5);
+    wallEast.receiveShadow = true;
+    roomGroup.add(wallEast);
+
+    const wallSouth = new THREE.Mesh(new THREE.BoxGeometry(W + 0.36, H, 0.18), wallMat);
+    wallSouth.position.set(0, H / 2, zSouth + 0.09);
+    wallSouth.receiveShadow = true;
+    roomGroup.add(wallSouth);
+
+    // Boiserie (molduras arquitetônicas clássicas sutis na parede Oeste para quebrar o paredão liso)
+    const trimMat = new THREE.MeshStandardMaterial({ color: '#cbb9a4', roughness: 0.84 });
+    function addWallMoldingRect(x, y, z, w, h, rotY) {
+      const g = new THREE.Group();
+      const t = 0.026, d = 0.016;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(w, t, d), trimMat); top.position.y = h / 2; g.add(top);
+      const bot = new THREE.Mesh(new THREE.BoxGeometry(w, t, d), trimMat); bot.position.y = -h / 2; g.add(bot);
+      const lft = new THREE.Mesh(new THREE.BoxGeometry(t, h, d), trimMat); lft.position.x = -w / 2; g.add(lft);
+      const rgt = new THREE.Mesh(new THREE.BoxGeometry(t, h, d), trimMat); rgt.position.x = w / 2; g.add(rgt);
+      g.position.set(x, y, z);
+      g.rotation.y = rotY;
+      roomGroup.add(g);
+    }
+    addWallMoldingRect(xWest + 0.008, 1.72, -1.78, 1.55, 1.50, Math.PI / 2);
+    addWallMoldingRect(xWest + 0.008, 0.52, -1.78, 1.55, 0.58, Math.PI / 2);
+    addWallMoldingRect(xWest + 0.008, 1.72,  0.75, 2.30, 1.50, Math.PI / 2);
+
+    // Parede Norte com JANELA PANORÂMICA AMPLA: X ∈ [-2.05, 2.05], Y ∈ [0.76, 2.68]
+    const winW = 4.10;
+    const winBottom = 0.76;
+    const winTop = 2.68;
+    const winH = winTop - winBottom;
+    const wallThick = 0.24;
+
+    const northBottom = new THREE.Mesh(new THREE.BoxGeometry(W + 0.36, winBottom, wallThick), wallMat);
+    northBottom.position.set(0, winBottom / 2, zNorth - wallThick / 2);
+    northBottom.receiveShadow = true;
+    northBottom.castShadow = true;
+    roomGroup.add(northBottom);
+
+    const northTopH = H - winTop;
+    const northTop = new THREE.Mesh(new THREE.BoxGeometry(W + 0.36, northTopH, wallThick), wallMat);
+    northTop.position.set(0, winTop + northTopH / 2, zNorth - wallThick / 2);
+    northTop.receiveShadow = true;
+    northTop.castShadow = true;
+    roomGroup.add(northTop);
+
+    const sideW = (W - winW) * 0.5 + 0.18;
+    const northLeft = new THREE.Mesh(new THREE.BoxGeometry(sideW, winH, wallThick), wallMat);
+    northLeft.position.set(-winW / 2 - sideW / 2, winBottom + winH / 2, zNorth - wallThick / 2);
+    northLeft.receiveShadow = true;
+    northLeft.castShadow = true;
+    roomGroup.add(northLeft);
+
+    const northRight = new THREE.Mesh(new THREE.BoxGeometry(sideW, winH, wallThick), wallMat);
+    northRight.position.set(winW / 2 + sideW / 2, winBottom + winH / 2, zNorth - wallThick / 2);
+    northRight.receiveShadow = true;
+    northRight.castShadow = true;
+    roomGroup.add(northRight);
+
+    // Peitoril largo chanfrado em madeira nogueira + moldura arquitetônica completa
+    const frameDepth = 0.28;
+    const frameThick = 0.072;
+    const sill = new THREE.Mesh(new RoundedBoxGeometry(winW + 0.28, 0.056, 0.40, 3, 0.010), walnutMat);
+    sill.position.set(0, winBottom + 0.026, zNorth - 0.10);
+    sill.castShadow = true;
+    sill.receiveShadow = true;
+    roomGroup.add(sill);
+
+    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.16, frameThick, frameDepth), darkWoodMat);
+    topFrame.position.set(0, winTop - frameThick / 2, zNorth - 0.12);
+    topFrame.castShadow = true;
+    roomGroup.add(topFrame);
+
+    for (const sx of [-1, 1]) {
+      const jamb = new THREE.Mesh(new THREE.BoxGeometry(frameThick, winH, frameDepth), darkWoodMat);
+      jamb.position.set(sx * (winW / 2 - frameThick / 2), winBottom + winH / 2, zNorth - 0.12);
+      jamb.castShadow = true;
+      roomGroup.add(jamb);
+    }
+
+    // Montantes laterais afastados (±1.42) deixando vão central de 2.84m completamente livre!
+    for (const mx of [-1.42, 1.42]) {
+      const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.034, winH - 0.06, 0.068), darkWoodMat);
+      mullion.position.set(mx, winBottom + winH / 2, zNorth - 0.13);
+      mullion.castShadow = true;
+      roomGroup.add(mullion);
+    }
+
+    // Vidros sutis com leve reflexo nas folhas laterais
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: '#dce8f5',
+      roughness: 0.04,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.07,
+      reflectivity: 0.92,
+      side: THREE.DoubleSide
+    });
+    for (const gx of [-1.72, 1.72]) {
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(0.60, winH - 0.10), glassMat);
+      pane.position.set(gx, winBottom + winH / 2, zNorth - 0.13);
+      roomGroup.add(pane);
+    }
+
+    // Rodapés com friso superior
+    const baseH = 0.105;
+    const baseParts = [
+      [W, baseH, 0.026, 0, baseH / 2, zNorth + 0.013],
+      [W, baseH, 0.026, 0, baseH / 2, zSouth - 0.013],
+      [0.026, baseH, D, xWest + 0.013, baseH / 2, (zNorth + zSouth) * 0.5],
+      [0.026, baseH, D, xEast - 0.013, baseH / 2, (zNorth + zSouth) * 0.5]
+    ];
+    for (const [bw, bh, bd, bx, by, bz] of baseParts) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), darkWoodMat);
+      b.position.set(bx, by, bz);
+      b.receiveShadow = true;
+      roomGroup.add(b);
+    }
+
+    // Porta almofadada na parede Sul
+    const doorGroup = new THREE.Group();
+    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.04, 2.24, 0.08), darkWoodMat);
+    doorFrame.position.set(0.2, 1.12, zSouth - 0.02);
+    doorGroup.add(doorFrame);
+    const doorLeaf = new THREE.Mesh(new RoundedBoxGeometry(0.90, 2.14, 0.05, 2, 0.006), walnutMat);
+    doorLeaf.position.set(0.2, 1.07, zSouth - 0.04);
+    doorGroup.add(doorLeaf);
+    const doorHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.11, 12), brassMat);
+    doorHandle.rotation.z = Math.PI / 2;
+    doorHandle.position.set(-0.11, 1.02, zSouth - 0.09);
+    doorGroup.add(doorHandle);
+    roomGroup.add(doorGroup);
+
+    // =========================================================================
+    // 9. CORTINAS DE LINHO TRANSLÚCIDO COM BACKLIT DOURADO REAL E PREGAS NATURAIS
+    // =========================================================================
+    const curtainRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 5.15, 16), blackMetalMat);
+    curtainRod.rotation.z = Math.PI / 2;
+    curtainRod.position.set(0, 2.86, zNorth + 0.15);
+    roomGroup.add(curtainRod);
+
+    for (const fx of [-2.58, 2.58]) {
+      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), brassMat);
+      finial.position.set(fx, 2.86, zNorth + 0.15);
+      roomGroup.add(finial);
+    }
+    for (const bx of [-2.32, 0, 2.32]) {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.055, 0.16), blackMetalMat);
+      bracket.position.set(bx, 2.86, zNorth + 0.075);
+      roomGroup.add(bracket);
+    }
+
+    // Material físico de cortina com brilho de contraluz (subsurface/backlit glow solar!)
+    const curtainUniforms = {
+      uBacklitColor: { value: new THREE.Color('#ffad62') },
+      uBacklitStrength: { value: 0.42 }
+    };
+    const curtainMat = new THREE.MeshPhysicalMaterial({
+      color: '#f2e6d6',
+      map: creamLinenPBR.map,
+      normalMap: creamLinenPBR.normalMap,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      roughness: 0.92,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.86,
+      sheen: 0.55,
+      sheenRoughness: 0.72,
+      sheenColor: new THREE.Color('#ffca92'),
+      side: THREE.DoubleSide
+    });
+    curtainMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uBacklitColor = curtainUniforms.uBacklitColor;
+      shader.uniforms.uBacklitStrength = curtainUniforms.uBacklitStrength;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vCurtainWorldPos;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvCurtainWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uBacklitColor;\nuniform float uBacklitStrength;\nvarying vec3 vCurtainWorldPos;')
+        .replace(
+          '#include <dithering_fragment>',
+          `
+          // Iluminação translúcida apenas onde a cortina cobre o vão iluminado da janela!
+          float inWinX = smoothstep(2.15, 1.72, abs(vCurtainWorldPos.x));
+          float inWinY = smoothstep(0.65, 1.05, vCurtainWorldPos.y) * smoothstep(2.78, 2.45, vCurtainWorldPos.y);
+          float backlit = inWinX * inWinY;
+          gl_FragColor.rgb += uBacklitColor * backlit * uBacklitStrength;
+          // Opacidade sutilmente mais densa nas dobras e sobre a parede
+          gl_FragColor.a = mix(0.92, 0.74, backlit);
+          #include <dithering_fragment>
+          `
+        );
+    };
+
+    const animatedCurtains = [];
+    function createCurtainPanel(side) {
+      const width = 1.04;
+      const height = 2.82;
+      const segX = 48;
+      const segY = 40;
+      const geo = new THREE.PlaneGeometry(width, height, segX, segY);
+      const pos = geo.attributes.position;
+      const basePositions = new Float32Array(pos.array.length);
+
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const u = (x / width) + 0.5;          // 0 .. 1
+        const v = 1.0 - ((y / height) + 0.5); // 0 topo, 1 barra inferior
+
+        // Pregas orgânicas suaves que se acalmam na bainha inferior (sem dente-de-serra!)
+        const bottomCalm = 1.0 - 0.45 * smoothstepJS(0.84, 1.0, v);
+        const pleat = (Math.sin(u * Math.PI * 11.0) * 0.032 + Math.sin(u * Math.PI * 5.0 + 0.7) * 0.018) * bottomCalm;
+        const gather = side * Math.sin(v * Math.PI) * 0.065 * (side < 0 ? u : (1.0 - u));
+        pos.setX(i, x + gather);
+        pos.setZ(i, pleat);
+      }
+      basePositions.set(pos.array);
+      geo.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geo, curtainMat);
+      mesh.position.set(side * 2.02, 1.43, zNorth + 0.16);
+      mesh.receiveShadow = true;
+      roomGroup.add(mesh);
+
+      for (let r = 0; r < 7; r++) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.0038, 8, 16), brassMat);
+        ring.rotation.y = Math.PI / 2;
+        ring.position.set(side * 2.02 - width * 0.46 + (r / 6) * width * 0.92, 2.86, zNorth + 0.15);
+        roomGroup.add(ring);
+      }
+      animatedCurtains.push({ mesh, geo, basePositions, side, height, width });
+    }
+    function smoothstepJS(e0, e1, x) {
+      const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+      return t * t * (3 - 2 * t);
+    }
+    createCurtainPanel(-1);
+    createCurtainPanel(1);
+
+    // =========================================================================
+    // 10. MESA EM DESTAQUE + XÍCARA ARTESANAL FUMEGANTE + LIVRO CURVO + ÓCULOS + ABAJUR
+    // =========================================================================
+    const coffeeTableGroup = new THREE.Group();
+    coffeeTableGroup.position.set(0.64, 0, -1.04);
+    scene.add(coffeeTableGroup);
+
+    const tableH = 0.74;
+    // Tampo de nogueira com UV planar perfeita (veios retos naturais!) + borda boleada
+    const tableTopMat = new THREE.MeshStandardMaterial({
+      map: walnutPBR.map,
+      normalMap: walnutPBR.normalMap,
+      normalScale: new THREE.Vector2(0.22, 0.22),
+      roughnessMap: walnutPBR.roughnessMap,
+      roughness: 0.50,
+      metalness: 0.03
+    });
+    const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.466, 0.462, 0.036, 64), tableTopMat);
+    tableTop.position.y = tableH;
+    tableTop.castShadow = true;
+    tableTop.receiveShadow = true;
+    coffeeTableGroup.add(tableTop);
+
+    // Borda perimetral suavemente arredondada (sem afetar a UV do tampo)
+    const tableEdge = new THREE.Mesh(new THREE.TorusGeometry(0.464, 0.018, 12, 64), tableTopMat);
+    tableEdge.rotation.x = Math.PI / 2;
+    tableEdge.position.y = tableH;
+    tableEdge.castShadow = true;
+    coffeeTableGroup.add(tableEdge);
+
+    const tableSurfaceY = tableH + 0.018;
+
+    const tableApron = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.32, 0.034, 40), darkWoodMat);
+    tableApron.position.y = tableH - 0.035;
+    coffeeTableGroup.add(tableApron);
+
+    // 3 pernas torneadas com ponteiras de latão + sombras de contato no piso
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2 + 0.45;
+      const legG = new THREE.Group();
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.014, tableH - 0.06, 16), walnutMat);
+      leg.position.y = (tableH - 0.06) / 2 + 0.05;
+      leg.castShadow = true;
+      legG.add(leg);
+
+      const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.013, 0.055, 16), brassMat);
+      ferrule.position.y = 0.028;
+      legG.add(ferrule);
+
+      legG.position.set(Math.cos(ang) * 0.24, 0, Math.sin(ang) * 0.24);
+      legG.rotation.z = Math.cos(ang) * 0.16;
+      legG.rotation.x = -Math.sin(ang) * 0.16;
+      coffeeTableGroup.add(legG);
+
+      const legAO = createContactShadow(0.09, 0.09, 0.48);
+      legAO.position.set(Math.cos(ang) * 0.30, 0.002, Math.sin(ang) * 0.30);
+      coffeeTableGroup.add(legAO);
+    }
+
+    // ---- XÍCARA DE CAFÉ ARTESANAL FUMEGANTE ----
+    const cupGroup = new THREE.Group();
+    cupGroup.position.set(-0.14, tableSurfaceY, 0.13);
+    cupGroup.scale.setScalar(1.08);
+    coffeeTableGroup.add(cupGroup);
+
+    // Sombra de contato sob o porta-copos
+    const coasterAO = createContactShadow(0.145, 0.145, 0.62);
+    coasterAO.position.y = 0.0008;
+    cupGroup.add(coasterAO);
+
+    // Porta-copos torneado de madeira carvalho com rebaixo suave
+    const coasterPts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(0.116, 0.0),
+      new THREE.Vector2(0.120, 0.004),
+      new THREE.Vector2(0.118, 0.009),
+      new THREE.Vector2(0.106, 0.009),
+      new THREE.Vector2(0.102, 0.007),
+      new THREE.Vector2(0.0, 0.007)
+    ];
+    const coaster = new THREE.Mesh(new THREE.LatheGeometry(coasterPts, 48), warmOakMat);
+    coaster.castShadow = true;
+    coaster.receiveShadow = true;
+    cupGroup.add(coaster);
+
+    const saucerAO = createContactShadow(0.102, 0.102, 0.50);
+    saucerAO.position.y = 0.0075;
+    cupGroup.add(saucerAO);
+
+    const ceramicPBR = createCeramicPBR('#efe5d7', 'rgba(92, 68, 50, 0.36)');
+    const ceramicMat = new THREE.MeshPhysicalMaterial({
+      map: ceramicPBR.map,
+      normalMap: ceramicPBR.normalMap,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      roughnessMap: ceramicPBR.roughnessMap,
+      roughness: 0.28,
+      metalness: 0.0,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.16
+    });
+    const ceramicRimMat = new THREE.MeshPhysicalMaterial({
+      color: '#8f6343',
+      roughness: 0.56,
+      clearcoat: 0.20
+    });
+
+    // Pires esculpido
+    const saucerPts = [
+      new THREE.Vector2(0.0, 0.007),
+      new THREE.Vector2(0.044, 0.007),
+      new THREE.Vector2(0.056, 0.012),
+      new THREE.Vector2(0.094, 0.024),
+      new THREE.Vector2(0.101, 0.0265),
+      new THREE.Vector2(0.097, 0.029),
+      new THREE.Vector2(0.052, 0.017),
+      new THREE.Vector2(0.036, 0.0135),
+      new THREE.Vector2(0.0, 0.0135)
+    ];
+    const saucer = new THREE.Mesh(new THREE.LatheGeometry(saucerPts, 56), ceramicMat);
+    saucer.castShadow = true;
+    saucer.receiveShadow = true;
+    cupGroup.add(saucer);
+
+    const cupBaseAO = createContactShadow(0.056, 0.056, 0.58);
+    cupBaseAO.position.y = 0.0142;
+    cupGroup.add(cupBaseAO);
+
+    // Xícara de parede dupla com silhueta artesanal macia
+    const cupPts = [
+      new THREE.Vector2(0.0, 0.014),
+      new THREE.Vector2(0.035, 0.014),
+      new THREE.Vector2(0.045, 0.023),
+      new THREE.Vector2(0.054, 0.052),
+      new THREE.Vector2(0.0585, 0.094),
+      new THREE.Vector2(0.060, 0.106),
+      new THREE.Vector2(0.0565, 0.1095),
+      new THREE.Vector2(0.0525, 0.106),
+      new THREE.Vector2(0.0495, 0.062),
+      new THREE.Vector2(0.038, 0.025),
+      new THREE.Vector2(0.0, 0.021)
+    ];
+    const cupBody = new THREE.Mesh(new THREE.LatheGeometry(cupPts, 56), ceramicMat);
+    cupBody.castShadow = true;
+    cupBody.receiveShadow = true;
+    cupGroup.add(cupBody);
+
+    // Borda rústica de barro queimado
+    const cupRim = new THREE.Mesh(new THREE.TorusGeometry(0.0566, 0.0031, 14, 56), ceramicRimMat);
+    cupRim.rotation.x = Math.PI / 2;
+    cupRim.position.y = 0.108;
+    cupGroup.add(cupRim);
+
+    // Alça anatômica orgânica
+    const handleCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.052, 0.093, 0.0),
+      new THREE.Vector3(0.085, 0.090, 0.0),
+      new THREE.Vector3(0.092, 0.062, 0.0),
+      new THREE.Vector3(0.077, 0.037, 0.0),
+      new THREE.Vector3(0.046, 0.034, 0.0)
+    ]);
+    const cupHandle = new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 32, 0.0072, 14, false), ceramicMat);
+    cupHandle.rotation.y = -0.36;
+    cupHandle.castShadow = true;
+    cupGroup.add(cupHandle);
+
+    // Líquido do café com crema aveludada, normalMap e reflexo do pôr do sol
+    const coffeePBR = createCoffeePBR();
+    const coffeeMat = new THREE.MeshPhysicalMaterial({
+      map: coffeePBR.map,
+      normalMap: coffeePBR.normalMap,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      roughnessMap: coffeePBR.roughnessMap,
+      roughness: 0.20,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.06
+    });
+    const coffeeSurface = new THREE.Mesh(new THREE.CircleGeometry(0.0532, 48), coffeeMat);
+    coffeeSurface.rotation.x = -Math.PI / 2;
+    coffeeSurface.position.y = 0.094;
+    cupGroup.add(coffeeSurface);
+
+    // Colherinha de latão esculpida (cabo afinado + concha côncava real!)
+    const spoonGroup = new THREE.Group();
+    const stemCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.055, 0.003, 0),
+      new THREE.Vector3(-0.010, 0.001, 0),
+      new THREE.Vector3(0.036, 0.000, 0)
+    ]);
+    const spoonStem = new THREE.Mesh(new THREE.TubeGeometry(stemCurve, 16, 0.0022, 10, false), brassMat);
+    spoonStem.scale.set(1, 0.55, 1.35);
+    spoonGroup.add(spoonStem);
+
+    const bowlGeo = new THREE.SphereGeometry(0.013, 18, 12, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45);
+    const spoonBowl = new THREE.Mesh(bowlGeo, brassMat);
+    spoonBowl.scale.set(1.45, 0.52, 0.85);
+    spoonBowl.position.set(0.052, 0.004, 0);
+    spoonGroup.add(spoonBowl);
+
+    spoonGroup.position.set(0.036, 0.025, 0.066);
+    spoonGroup.rotation.y = 0.58;
+    spoonGroup.rotation.z = 0.13;
+    cupGroup.add(spoonGroup);
+
+    // ---- VAPOR VOLUMÉTRICO ORGÂNICO (VOLUTAS SUAVES EM ESPIRAL, SEM LISTRAS RETAS!) ----
+    const steamUniforms = {
+      uTime: { value: 0 },
+      uTint: { value: new THREE.Color('#ffebd4') }
+    };
+    const steamMat = new THREE.ShaderMaterial({
+      uniforms: steamUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+      vertexShader: /* glsl */`
+        uniform float uTime;
+        attribute float aPhase;
+        varying vec2 vUv;
+        varying float vPhase;
+        varying float vViewFade;
+        void main() {
+          vUv = uv;
+          vPhase = aPhase;
+          vec3 p = position;
+          float h = uv.y;
+          // Turbulência sinuosa mais ampla conforme o vapor sobe e se abre
+          float swirl = h * h * 0.058 + h * 0.018;
+          p.x += sin(h * 4.2 - uTime * 1.15 + aPhase) * swirl;
+          p.z += cos(h * 3.6 - uTime * 0.92 + aPhase * 1.6) * swirl;
+
+          vec4 wp = modelMatrix * vec4(p, 1.0);
+          vec3 worldNormal = normalize(mat3(modelMatrix) * normal);
+          vec3 viewDir = normalize(cameraPosition - wp.xyz);
+          // Suaviza planos vistos de quina para eliminar linhas verticais!
+          vViewFade = pow(abs(dot(worldNormal, viewDir)), 1.35);
+
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform float uTime;
+        uniform vec3 uTint;
+        varying vec2 vUv;
+        varying float vPhase;
+        varying float vViewFade;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+            u.y
+          );
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          mat2 m = mat2(0.8, -0.6, 0.6, 0.8);
+          for (int i = 0; i < 4; i++) {
+            v += a * noise(p);
+            p = m * p * 2.04 + vec2(3.7, 6.1);
+            a *= 0.5;
+          }
+          return v;
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          // Distorção orgânica do eixo central (forma voluta de vapor, não tubo reto)
+          float centerShift = sin(uv.y * 5.0 - uTime * 0.85 + vPhase) * 0.16 * uv.y;
+          float xDist = abs((uv.x - 0.5) - centerShift) * 2.0;
+          float spread = 0.34 + uv.y * 0.72;
+          float radial = smoothstep(1.0, 0.0, xDist / spread);
+          radial = radial * radial;
+
+          float vertical = smoothstep(0.0, 0.18, uv.y) * smoothstep(1.0, 0.25, uv.y);
+
+          vec2 q = vec2(uv.x * 2.2, uv.y * 2.4 - uTime * 0.48);
+          float warp = fbm(q + vec2(vPhase, 0.0));
+          float n = fbm(q * 1.55 + vec2(warp * 0.9, -uTime * 0.25));
+          float wisp = smoothstep(0.36, 0.78, n);
+
+          float alpha = radial * vertical * wisp * vViewFade * 0.30;
+          if (alpha < 0.004) discard;
+          gl_FragColor = vec4(uTint, alpha);
+        }
+      `
+    });
+
+    const steamGroup = new THREE.Group();
+    steamGroup.position.set(0, 0.097, 0);
+    cupGroup.add(steamGroup);
+
+    const steamPlanes = 6;
+    for (let i = 0; i < steamPlanes; i++) {
+      const sGeo = new THREE.PlaneGeometry(0.18, 0.40, 8, 22);
+      sGeo.translate(0, 0.20, 0);
+      const phases = new Float32Array(sGeo.attributes.position.count).fill(i * 1.61);
+      sGeo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+      const sMesh = new THREE.Mesh(sGeo, steamMat);
+      sMesh.rotation.y = (i / steamPlanes) * Math.PI;
+      sMesh.position.set(Math.cos(i * 2.2) * 0.010, 0, Math.sin(i * 2.2) * 0.010);
+      steamGroup.add(sMesh);
+    }
+
+    // ---- LIVRO ABERTO COM PÁGINAS REALMENTE CURVAS + MARCA-PÁGINA ----
+    const bookGroup = new THREE.Group();
+    bookGroup.position.set(0.10, tableSurfaceY, -0.15);
+    bookGroup.rotation.y = -0.38;
+
+    const bookAO = createContactShadow(0.18, 0.14, 0.52);
+    bookAO.position.y = 0.0007;
+    bookGroup.add(bookAO);
+
+    const coverMat = new THREE.MeshStandardMaterial({ color: '#4d3329', roughness: 0.80 });
+    const bookCover = new THREE.Mesh(new RoundedBoxGeometry(0.285, 0.007, 0.205, 2, 0.002), coverMat);
+    bookCover.position.y = 0.004;
+    bookCover.castShadow = true;
+    bookCover.receiveShadow = true;
+    bookGroup.add(bookCover);
+
+    // Páginas esculpidas com curva real saindo da lombada
+    function createCurvedPageBlock(side) {
+      const geo = new THREE.BoxGeometry(0.132, 0.015, 0.188, 16, 2, 2);
+      const p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i);
+        let y = p.getY(i);
+        // u = 0 na lombada, 1 na borda externa
+        const u = side > 0 ? (x + 0.066) / 0.132 : (0.066 - x) / 0.132;
+        const arch = Math.sin(u * Math.PI) * 0.012 + (1.0 - Math.exp(-u * 5.0)) * 0.005;
+        y += arch;
+        p.setY(i, y);
+      }
+      geo.computeVertexNormals();
+      const pageEdgeMat = new THREE.MeshStandardMaterial({ color: '#dfd2bc', roughness: 0.90 });
+      const topPageMat = new THREE.MeshStandardMaterial({
+        map: createBookPageTexture(side > 0),
+        roughness: 0.88
+      });
+      const mats = [pageEdgeMat, pageEdgeMat, topPageMat, pageEdgeMat, pageEdgeMat, pageEdgeMat];
+      const mesh = new THREE.Mesh(geo, mats);
+      mesh.position.set(side * 0.067, 0.013, 0);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+    bookGroup.add(createCurvedPageBlock(-1));
+    bookGroup.add(createCurvedPageBlock(1));
+
+    // Marca-página de fita terracota saindo do meio do livro
+    const ribbonCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.0, 0.019, -0.06),
+      new THREE.Vector3(0.006, 0.018, 0.04),
+      new THREE.Vector3(0.022, 0.007, 0.108),
+      new THREE.Vector3(0.032, 0.002, 0.145)
+    ]);
+    const ribbon = new THREE.Mesh(
+      new THREE.TubeGeometry(ribbonCurve, 16, 0.0032, 6, false),
+      new THREE.MeshStandardMaterial({ color: '#9e4733', roughness: 0.72 })
+    );
+    ribbon.scale.set(1.6, 0.25, 1.0);
+    bookGroup.add(ribbon);
+    coffeeTableGroup.add(bookGroup);
+
+    // ---- ÓCULOS DE LEITURA DELICADOS AO LADO DO LIVRO ----
+    const glassesGroup = new THREE.Group();
+    glassesGroup.position.set(-0.08, tableSurfaceY + 0.004, -0.23);
+    glassesGroup.rotation.y = 0.65;
+    const lensMat = new THREE.MeshPhysicalMaterial({
+      color: '#f5efe6',
+      roughness: 0.05,
+      transparent: true,
+      opacity: 0.22,
+      reflectivity: 0.95
+    });
+    for (const sx of [-1, 1]) {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.0016, 8, 28), brassMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(sx * 0.027, 0.002, 0);
+      glassesGroup.add(rim);
+
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.020, 24), lensMat);
+      lens.rotation.x = -Math.PI / 2;
+      lens.position.set(sx * 0.027, 0.002, 0);
+      glassesGroup.add(lens);
+
+      const temple = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.11, 6), brassMat);
+      temple.rotation.z = Math.PI / 2;
+      temple.rotation.y = sx > 0 ? 0.12 : -0.18;
+      temple.position.set(sx * 0.005, 0.008 + (sx > 0 ? 0.003 : 0), 0.018);
+      glassesGroup.add(temple);
+    }
+    const bridge = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.014, 6), brassMat);
+    bridge.rotation.z = Math.PI / 2;
+    bridge.position.set(0, 0.002, -0.003);
+    glassesGroup.add(bridge);
+    coffeeTableGroup.add(glassesGroup);
+
+    // ---- ABAJUR ARTESANAL DE MESA (CÚPULA DE LINHO COM GRADIENTE INTERNO REAL!) ----
+    const tableLampGroup = new THREE.Group();
+    tableLampGroup.position.set(0.28, tableSurfaceY, 0.09);
+
+    const lampAO = createContactShadow(0.085, 0.085, 0.56);
+    lampAO.position.y = 0.0008;
+    tableLampGroup.add(lampAO);
+
+    // Base em cerâmica fosca/travertino artesanal (adeus reflexo plástico!)
+    const lampBasePBR = createCeramicPBR('#8f694f', 'rgba(54, 34, 22, 0.42)');
+    const lampBaseMat = new THREE.MeshStandardMaterial({
+      map: lampBasePBR.map,
+      normalMap: lampBasePBR.normalMap,
+      normalScale: new THREE.Vector2(0.22, 0.22),
+      roughnessMap: lampBasePBR.roughnessMap,
+      roughness: 0.86,
+      metalness: 0.01
+    });
+    const lampBasePts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(0.056, 0.0),
+      new THREE.Vector2(0.064, 0.036),
+      new THREE.Vector2(0.056, 0.095),
+      new THREE.Vector2(0.034, 0.145),
+      new THREE.Vector2(0.018, 0.168),
+      new THREE.Vector2(0.012, 0.172)
+    ];
+    const lampBase = new THREE.Mesh(new THREE.LatheGeometry(lampBasePts, 40), lampBaseMat);
+    lampBase.castShadow = true;
+    lampBase.receiveShadow = true;
+    tableLampGroup.add(lampBase);
+
+    const lampCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.018, 16), brassMat);
+    lampCollar.position.y = 0.178;
+    tableLampGroup.add(lampCollar);
+
+    const lampStem = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.085, 12), brassMat);
+    lampStem.position.y = 0.22;
+    tableLampGroup.add(lampStem);
+
+    // Cúpula de linho com shader de iluminação interna realista (mais quente no meio, bordas suaves, textura tramada)
+    const shadeUniforms = {
+      uGlow: { value: 1.05 },
+      uMap: { value: creamLinenPBR.map }
+    };
+    function createLampShadeMaterial() {
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          uGlow: shadeUniforms.uGlow,
+          uMap: shadeUniforms.uMap
+        },
+        side: THREE.DoubleSide,
+        vertexShader: /* glsl */`
+          varying vec2 vUv;
+          varying vec3 vNormal;
+          varying vec3 vViewPos;
+          void main() {
+            vUv = uv;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vViewPos = -mv.xyz;
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: /* glsl */`
+          uniform float uGlow;
+          uniform sampler2D uMap;
+          varying vec2 vUv;
+          varying vec3 vNormal;
+          varying vec3 vViewPos;
+
+          void main() {
+            // Trama de linho fina visível no close-up
+            vec3 fabric = texture2D(uMap, vUv * vec2(10.0, 5.0)).rgb;
+            float weaveVar = dot(fabric, vec3(0.333));
+
+            // Gradiente vertical da lâmpada interna (pico de luz em v ≈ 0.44, bordas mais suaves)
+            float core = exp(-pow((vUv.y - 0.44) * 2.55, 2.0));
+            float edgeDark = smoothstep(0.0, 0.07, vUv.y) * smoothstep(1.0, 0.93, vUv.y);
+
+            // Efeito Fresnel de espessura do tecido nas bordas cilíndricas
+            vec3 V = normalize(vViewPos);
+            float facing = abs(dot(normalize(vNormal), V));
+            float thickness = mix(0.62, 1.0, pow(facing, 0.55));
+
+            vec3 warmCenter = vec3(1.18, 0.78, 0.42);
+            vec3 shadeEdge  = vec3(0.62, 0.42, 0.28);
+            vec3 col = mix(shadeEdge, warmCenter, core) * (0.72 + 0.44 * weaveVar);
+            col *= thickness * (0.55 + 0.45 * edgeDark) * uGlow;
+
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      });
+    }
+    const shadeMat = createLampShadeMaterial();
+    const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.118, 0.155, 44, 1, true), shadeMat);
+    lampShade.position.y = 0.285;
+    tableLampGroup.add(lampShade);
+
+    // Aros de acabamento (debrum fino) no topo e na base da cúpula
+    const trimShadeMat = new THREE.MeshStandardMaterial({ color: '#c4a889', roughness: 0.85 });
+    const topTrim = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.0026, 8, 44), trimShadeMat);
+    topTrim.rotation.x = Math.PI / 2;
+    topTrim.position.y = 0.285 + 0.077;
+    tableLampGroup.add(topTrim);
+    const botTrim = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.0028, 8, 44), trimShadeMat);
+    botTrim.rotation.x = Math.PI / 2;
+    botTrim.position.y = 0.285 - 0.077;
+    tableLampGroup.add(botTrim);
+
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.020, 14, 12),
+      new THREE.MeshBasicMaterial({ color: '#ffdfaa' })
+    );
+    bulb.position.y = 0.272;
+    tableLampGroup.add(bulb);
+    coffeeTableGroup.add(tableLampGroup);
+
+    // ---- CADEIRA ESCANDINAVA CURVA (ADEUS TÁBUA RETA!) ----
+    function createScandinavianChair() {
+      const g = new THREE.Group();
+
+      // Moldura sob o assento
+      const frame = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.036, 0.44, 3, 0.010), walnutMat);
+      frame.position.y = 0.415;
+      frame.castShadow = true;
+      g.add(frame);
+
+      // Almofada do assento macia e boleada em linho creme
+      const seat = new THREE.Mesh(new RoundedBoxGeometry(0.45, 0.058, 0.43, 4, 0.022), creamLinenMat);
+      seat.position.y = 0.452;
+      seat.castShadow = true;
+      seat.receiveShadow = true;
+      g.add(seat);
+
+      // Pernas torneadas + travessas
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.011, 0.42, 14), walnutMat);
+          leg.position.set(sx * 0.195, 0.21, sz * 0.185);
+          leg.rotation.z = -sx * 0.07;
+          leg.rotation.x = sz * 0.05;
+          leg.castShadow = true;
+          g.add(leg);
+
+          const legAO = createContactShadow(0.055, 0.055, 0.42);
+          legAO.position.set(sx * 0.21, 0.002, sz * 0.195);
+          g.add(legAO);
+        }
+        // Montantes traseiros que sobem até o arco do encosto
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.017, 0.36, 14), walnutMat);
+        post.position.set(sx * 0.195, 0.60, 0.205);
+        post.rotation.x = 0.14;
+        post.castShadow = true;
+        g.add(post);
+
+        // Travessa lateral inferior
+        const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.37, 10), walnutMat);
+        stretcher.rotation.x = Math.PI / 2;
+        stretcher.position.set(sx * 0.20, 0.17, 0);
+        g.add(stretcher);
+      }
+
+      // Encosto curvo ergonômico em madeira torneada perfeitamente conectado aos montantes
+      const backArc = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.225, 0.745, 0.065),
+        new THREE.Vector3(-0.205, 0.775, 0.215),
+        new THREE.Vector3(-0.115, 0.790, 0.262),
+        new THREE.Vector3( 0.000, 0.796, 0.276),
+        new THREE.Vector3( 0.115, 0.790, 0.262),
+        new THREE.Vector3( 0.205, 0.775, 0.215),
+        new THREE.Vector3( 0.225, 0.745, 0.065)
+      ]);
+      const backGeo = new THREE.TubeGeometry(backArc, 40, 0.024, 16, false);
+      const backMesh = new THREE.Mesh(backGeo, walnutMat);
+      backMesh.castShadow = true;
+      backMesh.receiveShadow = true;
+      g.add(backMesh);
+
+      // Ripas verticais finas de apoio conectando assento ao arco superior
+      for (const rx of [-0.095, 0.0, 0.095]) {
+        const zOff = 0.242 + (1.0 - Math.abs(rx) * 4.5) * 0.022;
+        const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.35, 10), walnutMat);
+        spindle.position.set(rx, 0.615, zOff);
+        spindle.rotation.x = 0.16;
+        spindle.castShadow = true;
+        g.add(spindle);
+      }
+
+      return g;
+    }
+    const deskChair = createScandinavianChair();
+    deskChair.position.set(1.38, 0, -0.78);
+    deskChair.rotation.y = -1.16;
+    scene.add(deskChair);
+
+    // =========================================================================
+    // 11. PERSONAGEM REALISTA ESTILO NPC MODERNO (GLB RIGGED + VESTIDO DE PRAIA + CABELO LISO EM CIMA + TRANÇAS LONGAS + 360°)
+    // =========================================================================
+    const personGroup = new THREE.Group();
+    // Posicionada com folga da janela (z = -2.36) para permitir girar a câmera 360° completos ao redor dela e dar zoom de perto!
+    // Agora debruçada no peitoril da janela (topo em y = 0.814, borda da frente em z = -3.10), olhando o mar e o pôr do sol à direita
+    personGroup.position.set(-0.56, 0, -2.99);
+    personGroup.rotation.y = Math.PI - 0.50;
+    scene.add(personGroup);
+
+    // Sombra de contato realista sob os pés da personagem
+    const personAO = createContactShadow(0.32, 0.28, 0.56);
+    personAO.position.set(0, 0.002, 0.0);
+    personGroup.add(personAO);
+
+    // Luz dedicada sutil de contorno e preenchimento facial dourado (destaca o rosto e brilho sedoso do cabelo liso)
+    const npcFaceLight = new THREE.PointLight('#ffd4a8', 0.50, 2.8, 1.5);
+    npcFaceLight.position.set(0.35, 1.56, 0.58);
+    personGroup.add(npcFaceLight);
+
+    const npcRig = {
+      loaded: false,
+      root: null,
+      bones: {},
+      baseQuats: {},
+      braidGroups: []
+    };
+
+    // Rotaciona um osso usando um eixo no espaço da personagem (+X direita da tela/esquerda dela, +Y cima, +Z frente dela)
+    function rotateBoneInModelSpace(bone, axisVec, angleRad, modelRoot) {
+      if (!bone || !bone.parent || Math.abs(angleRad) < 1e-6) return;
+      modelRoot.updateMatrixWorld(true);
+      const rootQuat = new THREE.Quaternion();
+      modelRoot.getWorldQuaternion(rootQuat);
+      const worldAxis = axisVec.clone().normalize().applyQuaternion(rootQuat);
+
+      const parentWorldQuat = new THREE.Quaternion();
+      bone.parent.getWorldQuaternion(parentWorldQuat);
+      const localAxis = worldAxis.clone().applyQuaternion(parentWorldQuat.clone().invert()).normalize();
+
+      const deltaQ = new THREE.Quaternion().setFromAxisAngle(localAxis, angleRad);
+      bone.quaternion.premultiply(deltaQ);
+      bone.updateMatrixWorld(true);
+    }
+
+    // Vento no vestido: a barra (abaixo da cintura, só pixels de tecido) infla para FORA, nunca para dentro das pernas
+    function addDressSway(mesh, mat, baseImage) {
+      const geo = mesh.geometry, pos = geo.attributes.position, uv = geo.attributes.uv;
+      if (!uv || !baseImage) return;
+      const w = 512, h = 512;
+      const c = makeCanvas(w, h);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(baseImage, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      let yMin = Infinity, yMax = -Infinity;
+      for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
+      const unit = (yMax - yMin) / 1.71;
+      const sway = new Float32Array(pos.count);
+      let flagged = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const u = uv.getX(i) - Math.floor(uv.getX(i));
+        const v = uv.getY(i) - Math.floor(uv.getY(i));
+        const idx = (Math.min(h - 1, Math.floor(v * h)) * w + Math.min(w - 1, Math.floor(u * w))) * 4;
+        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+        const inDress = v >= 0.442 && u >= 0.596 && !(v < 0.462 && u < 0.865) && !(v >= 0.665 && v <= 0.785 && u >= 0.935) && (r - b) < 38 && (r + g + b) > 12;
+        const yRel = (pos.getY(i) - yMin) / (yMax - yMin);
+        const k = Math.min(1, Math.max(0, (0.56 - yRel) / 0.16));
+        sway[i] = inDress ? Math.pow(k, 1.4) : 0;
+        if (sway[i] > 0.05) flagged++;
+      }
+      geo.setAttribute('aSway', new THREE.BufferAttribute(sway, 1));
+      npcRig.swayU = { uSwayTime: { value: 0 }, uWind: { value: 0 }, uUnit: { value: unit } };
+      npcRig.swayFlagged = flagged;
+      mat.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, npcRig.swayU);
+        shader.vertexShader = 'attribute float aSway;\nuniform float uSwayTime;\nuniform float uWind;\nuniform float uUnit;\n' + shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          float swPh = (position.y / uUnit) * 38.0 + (position.x / uUnit) * 21.0 + uSwayTime * 2.1;
+          float swR = 0.5 + 0.5 * sin(swPh);
+          transformed += normalize(objectNormal) * aSway * (0.25 + 0.75 * uWind) * (0.35 + 0.65 * swR) * 0.011 * uUnit;`
+        );
+      };
+      mat.needsUpdate = true;
+    }
+
+    // Customiza o atlas de textura 2048x2048 da personagem usando máscara contínua nas regiões exatas do vestido, pele e cabelo (zero pixels falhados!)
+    function customizeGirlfriendAtlas(baseImage, maxAniso) {
+      const w = Math.min(1024, baseImage.width || 1024);
+      const h = Math.min(1024, baseImage.height || 1024);
+      const c = makeCanvas(w, h);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(baseImage, 0, 0, w, h);
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data;
+
+      // Tom de pele médio (bochechas) para a região do "cabelo" do modelo base: o couro cabeludo fica escondido pelo
+      // boné de cabelo 3D e a cunha escura de têmpora/costeleta vira pele, em vez de um bloco preto ao lado do rosto.
+      const skinAvg = [0, 0, 0];
+      {
+        let n = 0;
+        for (let y = Math.floor(h * 0.22); y < Math.floor(h * 0.30); y++) {
+          for (let x = Math.floor(w * 0.19); x < Math.floor(w * 0.24); x++) {
+            const i = (y * w + x) * 4;
+            skinAvg[0] += d[i]; skinAvg[1] += d[i + 1]; skinAvg[2] += d[i + 2]; n++;
+          }
+        }
+        skinAvg[0] /= n; skinAvg[1] /= n; skinAvg[2] /= n;
+      }
+
+      for (let y = 0; y < h; y++) {
+        const v = y / h;
+        for (let x = 0; x < w; x++) {
+          const u = x / w;
+          const idx = (y * w + x) * 4;
+          let r = d[idx], g = d[idx + 1], b = d[idx + 2];
+
+          const isHairRegion = (
+            (v < 0.366 && (u < 0.171 || u > 0.464) && u < 0.645) ||
+            (v < 0.122 && u >= 0.190 && u <= 0.440)
+          );
+          const isEyeRegion = (
+            (v < 0.118 && u >= 0.078 && u <= 0.200) ||
+            (v < 0.118 && u >= 0.434 && u <= 0.562)
+          );
+          const isTeethRegion = (
+            (v > 0.385 && v < 0.455 && u > 0.546 && u < 0.860) ||
+            (v > 0.908 && u > 0.224 && u < 0.528) ||
+            (v > 0.673 && v < 0.757 && u > 0.239 && u < 0.337)
+          );
+
+          // Na região da gola/corpo do vestido, todo pixel de tecido taupe tem saturação baixa ((r - b) < 28) enquanto a pele ao redor tem (r - b) > 40
+          const isDressCollarBox = (v >= 0.395 && v <= 0.542 && u >= 0.080 && u <= 0.568);
+          const isDressBodyBox = (
+            v >= 0.442 && u >= 0.568 &&
+            !(v < 0.462 && u < 0.865) &&
+            !(v >= 0.665 && v <= 0.785 && u >= 0.935)
+          );
+          // Pixels escuros demais (costura/gola do modelo base) dentro do tecido também viram vestido: sem fresta preta nas costas nem cunha escura na gola
+          const isDressPixel = (isDressCollarBox || isDressBodyBox) && (((r - b) < 38) || (r <= 68 && (r + g + b) < 300)) && ((r + g + b) > 3);
+
+          const isShoeRegion = (
+            v >= 0.095 && v <= 0.385 && u >= 0.750 && u <= 1.0
+          );
+
+          if (isEyeRegion || isTeethRegion) {
+            continue;
+          }
+
+          if (isHairRegion) {
+            // Cabelo liso sedoso castanho-escuro/preto natural com fios alinhados e reflexo acetinado (sem aspecto crespo/dreads!)
+            d[idx]     = Math.round(skinAvg[0] * 0.87);
+            d[idx + 1] = Math.round(skinAvg[1] * 0.80);
+            d[idx + 2] = Math.round(skinAvg[2] * 0.73);
+            continue;
+          }
+
+          if (isDressPixel) {
+            // Vestido de praia leve em linho/viscose off-white/creme ensolarado 100% contínuo (sem manchas nem costuras escuras!)
+            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+            const fold = Math.min(1.12, Math.max(0.76, 0.82 + (lum - 0.24) * 0.95));
+            const weave = (hash2(x * 0.5, y * 0.5) - 0.5) * 4.0;
+
+            let dr = 247 * fold + weave;
+            let dg = 238 * fold + weave;
+            let db = 221 * fold + weave;
+
+            // Toque sutil de degradê praiano dourado-areia e barrado delicado na barra do vestido (u perto de 0.60..0.66)
+            if (isDressBodyBox && u <= 0.68) {
+              const hemT = Math.max(0, Math.min(1, (0.68 - u) / 0.08));
+              dr -= hemT * 10 * fold;
+              dg -= hemT * 15 * fold;
+              db -= hemT * 22 * fold;
+            }
+
+            d[idx]     = Math.max(0, Math.min(255, Math.round(dr)));
+            d[idx + 1] = Math.max(0, Math.min(255, Math.round(dg)));
+            d[idx + 2] = Math.max(0, Math.min(255, Math.round(db)));
+            continue;
+          }
+
+          if (isShoeRegion) {
+            // Sandália rasteirinha de praia em couro caramelo/dourado
+            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+            // Remendo marrom do decote (peito sob a gola): vira o mesmo tom de pele do pescoço, sem cunha escura
+            if (lum >= 0.28 && v >= 0.12 && v <= 0.30 && u >= 0.78 && u <= 0.97) {
+              d[idx]     = Math.round(skinAvg[0] * 0.87);
+              d[idx + 1] = Math.round(skinAvg[1] * 0.80);
+              d[idx + 2] = Math.round(skinAvg[2] * 0.73);
+              continue;
+            }
+            if (lum < 0.28) {
+              const s = 0.74 + lum * 1.1;
+              d[idx]     = Math.min(255, Math.round(186 * s));
+              d[idx + 1] = Math.min(255, Math.round(130 * s));
+              d[idx + 2] = Math.min(255, Math.round(88  * s));
+              continue;
+            }
+          }
+
+          // Pele: tom moreno brasileiro dourado e uniforme (preservando sombreamento natural sem manchas!)
+          const isSkin = (r > b + 14 && g > b + 5 && r > 68);
+          if (isSkin) {
+            let sr = r * 0.87;
+            let sg = g * 0.80;
+            let sb = b * 0.73;
+
+            // Suaviza o escurecimento excessivo dos joelhos da textura base nas pernas
+            if (v >= 0.45 && u >= 0.27 && u <= 0.61) {
+              const legLum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+              const lift = Math.max(0.0, 0.56 - legLum) * 0.45;
+              sr = sr * (1.0 + lift) + 12 * lift;
+              sg = sg * (1.0 + lift) + 9  * lift;
+              sb = sb * (1.0 + lift) + 6  * lift;
+            }
+
+            // Rosto (u: 0.13..0.51, v: 0.11..0.41): blush quente sutil nas maçãs do rosto e lábios com sorriso vivo
+            if (v >= 0.11 && v <= 0.41 && u >= 0.13 && u <= 0.51) {
+              const dCheekL = Math.hypot((u - 0.210) / 0.054, (v - 0.262) / 0.041);
+              const dCheekR = Math.hypot((u - 0.422) / 0.054, (v - 0.262) / 0.041);
+              const cheek = Math.max(0, 1 - Math.min(dCheekL, dCheekR));
+              if (cheek > 0) {
+                sr += cheek * 11;
+                sg += cheek * 3;
+                sb -= cheek * 2;
+              }
+              const dLips = Math.hypot((u - 0.316) / 0.060, (v - 0.347) / 0.027);
+              if (dLips < 1.0) {
+                const lt = (1.0 - dLips) * 0.32;
+                sr = sr * (1 - lt) + 194 * lt;
+                sg = sg * (1 - lt) + 96  * lt;
+                sb = sb * (1 - lt) + 84  * lt;
+              }
+            }
+
+            d[idx]     = Math.max(0, Math.min(255, Math.round(sr)));
+            d[idx + 1] = Math.max(0, Math.min(255, Math.round(sg)));
+            d[idx + 2] = Math.max(0, Math.min(255, Math.round(sb)));
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+
+      // Sobrancelhas escuras expressivas nas coordenadas normalizadas exatas do atlas 2048x2048
+      ctx.save();
+      ctx.strokeStyle = 'rgba(24, 15, 11, 0.62)';
+      ctx.lineWidth = w * 0.0052;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.217, h * 0.180);
+      ctx.quadraticCurveTo(w * 0.254, h * 0.168, w * 0.289, h * 0.180);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.344, h * 0.180);
+      ctx.quadraticCurveTo(w * 0.379, h * 0.168, w * 0.416, h * 0.180);
+      ctx.stroke();
+      ctx.restore();
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.anisotropy = maxAniso;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    // =========================================================================
+    // CABELO NATURAL (fosco, sem risca, franja reta), BRINCOS E TRANÇAS DE 3 FIOS
+    // Tudo no referencial do rosto: x = esquerda dela, y = cima, z = frente, origem = meio dos olhos (metros).
+    // O cabelo e os brincos ficam presos no osso da cabeça; as tranças ficam presas no pescoço.
+    // =========================================================================
+    function attachGirlfriendBraidsAndDress(avatarRoot, bones, maxAniso) {
+      avatarRoot.updateMatrixWorld(true);
+      const V3 = THREE.Vector3;
+
+      // Textura de fios finos: linhas verticais castanho-escuras, sem brilho. A versão girada serve para os tubos das tranças.
+      function makeStrandTexture(rotated) {
+        const c = makeCanvas(512, 512);
+        const g = c.getContext('2d');
+        g.fillStyle = '#150e0b';
+        g.fillRect(0, 0, 512, 512);
+        // faixas largas e suaves (mechas) + fios finos por cima
+        for (let i = 0; i < 40; i++) {
+          const x = (i * 97) % 512;
+          const l = 10 + ((i * 29) % 100) * 0.10;
+          g.fillStyle = `rgba(${Math.round(l + 12)}, ${Math.round(l + 7)}, ${Math.round(l + 3)}, 0.25)`;
+          g.fillRect(x, 0, 6 + (i % 4) * 5, 512);
+        }
+        for (let i = 0; i < 320; i++) {
+          const x = (i * 37) % 512 + ((i * 13) % 7) * 0.45;
+          const l = 8 + ((i * 53) % 100) * 0.18;
+          const a = 0.30 + 0.45 * (((i * 17) % 10) / 10);
+          g.strokeStyle = `rgba(${Math.round(l + 16)}, ${Math.round(l + 9)}, ${Math.round(l + 3)}, ${a})`;
+          g.lineWidth = 1.0 + (i % 3) * 0.6;
+          g.beginPath();
+          g.moveTo(x, 0);
+          g.lineTo(x + ((i % 5) - 2) * 0.9, 512);
+          g.stroke();
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.anisotropy = maxAniso;
+        if (rotated) {
+          t.center.set(0.5, 0.5);
+          t.rotation = Math.PI / 2;
+        }
+        return t;
+      }
+
+      // Cabelo fosco com brilho de seda bem suave e igual dos dois lados (sem clearcoat, sem reflexo espelhado)
+      function makeHairMaterial(rotated, repeatU, repeatV) {
+        const map = makeStrandTexture(rotated);
+        map.repeat.set(repeatU, repeatV);
+        return new THREE.MeshPhysicalMaterial({
+          color: '#ffffff',
+          map,
+          roughness: 0.74,
+          metalness: 0.0,
+          sheen: 0.5,
+          sheenRoughness: 0.62,
+          sheenColor: new THREE.Color('#3d2a1e'),
+          envMapIntensity: 0.4,
+          side: THREE.DoubleSide
+        });
+      }
+      const capMat = makeHairMaterial(false, 1, 1);
+      const stripMat = makeHairMaterial(false, 0.07, 1);
+      const tubeMat = makeHairMaterial(true, 0.12, 2);
+
+      // ---- Quadro do rosto preso ao osso Head (osso: X = frente, Y = cima, Z = direita dela; escala 0.01) ----
+      const head = bones.Head;
+      head.updateWorldMatrix(true, false);
+      const headScale = head.matrixWorld.getMaxScaleOnAxis();
+      const eyeMidWorld = new V3();
+      const tmpEye = new V3();
+      bones.LeftEye.getWorldPosition(eyeMidWorld);
+      bones.RightEye.getWorldPosition(tmpEye);
+      eyeMidWorld.add(tmpEye).multiplyScalar(0.5);
+      const hairFrame = new THREE.Group();
+      hairFrame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(0, 0, -1), new V3(0, 1, 0), new V3(1, 0, 0)));
+      hairFrame.scale.setScalar(1 / headScale);
+      hairFrame.position.copy(head.worldToLocal(eyeMidWorld));
+      head.add(hairFrame);
+      hairFrame.updateWorldMatrix(true, true);
+      npcRig.hairFrame = hairFrame;
+
+      // ---- Crânio medido no modelo: superelipsoide (expoente 2.4) ----
+      const E = 2.4;
+      const P = 2 / E;
+      const skin = { cy: 0.004, cz: -0.083, rx: 0.082, ry: 0.090, rz: 0.108 };
+      const skinZ = (x, y) => {
+        const k = 1 - Math.pow(Math.abs(x) / skin.rx, E) - Math.pow(Math.abs(y - skin.cy) / skin.ry, E);
+        return skin.cz + skin.rz * Math.pow(Math.max(k, 0), 1 / E);
+      };
+      const skinNormal = (p) => new V3(
+        Math.sign(p.x) * Math.pow(Math.abs(p.x) / skin.rx, E - 1) / skin.rx,
+        Math.sign(p.y - skin.cy) * Math.pow(Math.abs(p.y - skin.cy) / skin.ry, E - 1) / skin.ry,
+        Math.sign(p.z - skin.cz) * Math.pow(Math.abs(p.z - skin.cz) / skin.rz, E - 1) / skin.rz
+      ).normalize();
+      const smooth = (t) => t * t * (3 - 2 * t);
+
+      // Ponto do boné: az = azimute (0 = frente, +π/2 = esquerda dela), th = ângulo a partir do topo, rad = raios
+      function capPoint(az, th, rad, front, back = 0) {
+        const s = Math.sin(th), c = Math.cos(th);
+        const r = Math.pow(Math.max(s, 0), P);
+        const yy = Math.sign(c) * Math.pow(Math.abs(c), P);
+        return new V3(
+          rad[0] * r * Math.sin(az),
+          skin.cy + rad[1] * yy,
+          skin.cz + rad[2] * r * Math.cos(az) + front * Math.max(0, Math.cos(az)) * s - back * Math.pow(Math.max(0, -Math.cos(az)), 0.7) * s
+        );
+      }
+      // Altura da borda do cabelo (linha da testa, acima da orelha, atrás da orelha até a nuca) por azimute 0..π
+      const RIM = [[0, 0.062], [0.40, 0.062], [0.75, 0.040], [1.10, 0.008], [1.45, -0.016], [1.70, -0.022], [1.95, -0.034], [2.30, -0.068], [2.80, -0.088], [Math.PI, -0.092]];
+      function rimY(az) {
+        const a = Math.min(Math.PI, Math.abs(((az + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI));
+        for (let i = 1; i < RIM.length; i++) {
+          if (a <= RIM[i][0]) {
+            const k = smooth((a - RIM[i - 1][0]) / (RIM[i][0] - RIM[i - 1][0]));
+            return RIM[i - 1][1] + (RIM[i][1] - RIM[i - 1][1]) * k;
+          }
+        }
+        return RIM[RIM.length - 1][1];
+      }
+
+      // Gera uma malha em grade (nu x nv) e vira os triângulos para a normal apontar para fora do centro dado
+      function gridGeometry(nu, nv, pointFn, uvFn, center) {
+        const pos = [], uv = [], idx = [];
+        for (let j = 0; j <= nv; j++) {
+          for (let i = 0; i <= nu; i++) {
+            const p = pointFn(i / nu, j / nv);
+            pos.push(p.x, p.y, p.z);
+            const t = uvFn(i / nu, j / nv);
+            uv.push(t[0], t[1]);
+          }
+        }
+        const st = nu + 1;
+        for (let j = 0; j < nv; j++) {
+          for (let i = 0; i < nu; i++) {
+            const a = j * st + i, b = a + 1, c = a + st, d = c + 1;
+            idx.push(a, c, b, b, c, d);
+          }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setIndex(idx);
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.computeVertexNormals();
+        if (center) {
+          const n = geo.attributes.normal, p = geo.attributes.position;
+          let dot = 0;
+          for (let k = 0; k < p.count; k += 7) {
+            dot += n.getX(k) * (p.getX(k) - center.x) + n.getY(k) * (p.getY(k) - center.y) + n.getZ(k) * (p.getZ(k) - center.z);
+          }
+          if (dot < 0) {
+            const ix = geo.index.array;
+            for (let k = 0; k < ix.length; k += 3) { const t = ix[k + 1]; ix[k + 1] = ix[k + 2]; ix[k + 2] = t; }
+            geo.index.needsUpdate = true;
+            geo.computeVertexNormals();
+          }
+        }
+        return geo;
+      }
+
+      // ---- 1. BONÉ DE CABELO: liso, penteado para trás, sem risca; afina até encostar na pele na borda ----
+      const capRad = [skin.rx + 0.0065, skin.ry + 0.0065, skin.rz + 0.0065];
+      const skinRad = [skin.rx - 0.0012, skin.ry - 0.0012, skin.rz - 0.0012];
+      const capRows = 26;
+      const lipRows = 3;
+      const capGeo = gridGeometry(
+        96, capRows + lipRows,
+        (u, v) => {
+          const az = u * Math.PI * 2;
+          const thRim = Math.acos(THREE.MathUtils.clamp(Math.pow(Math.abs((rimY(az) - skin.cy) / skin.ry), E / 2) * Math.sign(rimY(az) - skin.cy), -1, 1));
+          const row = v * (capRows + lipRows);
+          if (row <= capRows) return capPoint(az, thRim * (row / capRows), capRad, 0.005, 0.016);
+          const k = (row - capRows) / lipRows;
+          const rad = capRad.map((r, n) => r + (skinRad[n] - r) * k);
+          return capPoint(az, thRim + k * 0.07, rad, 0.005 * (1 - k), 0.016 - 0.008 * k);
+        },
+        (u, v) => [u * 2, v * 1.1],
+        new V3(0, skin.cy, skin.cz)
+      );
+      const capMesh = new THREE.Mesh(capGeo, capMat);
+      capMesh.castShadow = true;
+      capMesh.receiveShadow = true;
+      hairFrame.add(capMesh);
+
+      // ---- 1b. CABELO DA NUCA: mecha lisa que cai por trás da cabeça e junta nas tranças (cobre a nuca) ----
+      {
+        const y0 = -0.040;
+        const c0 = Math.pow(Math.abs((y0 - skin.cy) / skin.ry), E / 2) * Math.sign(y0 - skin.cy);
+        const th0 = Math.acos(THREE.MathUtils.clamp(c0, -1, 1));
+        const AZ = 1.52;
+        const napeGeo = gridGeometry(40, 16,
+          (u, v) => {
+            const az = Math.PI - AZ + u * AZ * 2;
+            const side = Math.cos((u * 2 - 1) * Math.PI / 2);   // 1 no meio, 0 nas pontas
+            const top = capPoint(az, th0, capRad, 0, 0.018);
+            const len = 0.105 + 0.055 * side;
+            const t = v;
+            const x = top.x * (1 - 0.30 * t);
+            const y = y0 - len * t;
+            const zIn = (top.z - skin.cz) * (1 - 0.30 * t) + skin.cz;
+            const z = zIn - 0.010 * Math.sin(Math.PI * t) * side;
+            return new V3(x, y, z);
+          },
+          (u, v) => [u * 0.9, v * 0.8],
+          new V3(0, -0.06, skin.cz)
+        );
+        const napeMesh = new THREE.Mesh(napeGeo, stripMat);
+        napeMesh.castShadow = true;
+        napeMesh.receiveShadow = true;
+        hairFrame.add(napeMesh);
+      }
+
+      // Fita achatada: centro (pts), normal da superfície (nrm), largura por ponto (wid)
+      function flatRibbon(pts, nrm, wid) {
+        const pos = [], uv = [], idx = [];
+        const n = pts.length;
+        for (let k = 0; k < n; k++) {
+          const t = (k < n - 1 ? pts[k + 1].clone().sub(pts[k]) : pts[k].clone().sub(pts[k - 1])).normalize();
+          const w = new V3().crossVectors(t, nrm[k]).normalize().multiplyScalar(wid[k] * 0.5);
+          const a = pts[k].clone().add(w), b = pts[k].clone().sub(w);
+          pos.push(a.x, a.y, a.z, b.x, b.y, b.z);
+          uv.push(0, k / (n - 1) * 2, 1, k / (n - 1) * 2);
+          if (k < n - 1) { const i0 = k * 2; idx.push(i0, i0 + 1, i0 + 2, i0 + 1, i0 + 3, i0 + 2); }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setIndex(idx);
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      // ---- 2. FRANJA RETA E CHEIA: 15 fitas lisas lado a lado, terminam logo acima das sobrancelhas ----
+      const BANG_N = 15;
+      npcRig.bangPivots = [];
+      for (let i = 0; i < BANG_N; i++) {
+        const f = i / (BANG_N - 1) * 2 - 1;
+        const x0 = f * 0.060;
+        const yEnd = 0.039 + 0.008 * Math.pow(Math.abs(f), 2.0);
+        const clr = 0.0042 + ((i * 5) % 3) * 0.0011;
+        const K = 9;
+        const pts = [], nrm = [], wid = [];
+        for (let k = 0; k <= K; k++) {
+          const u = k / K;
+          const y = 0.084 + (yEnd - 0.084) * u;
+          const x = x0 * (1 + 0.035 * u);
+          const z = skinZ(x, y) + clr + 0.0055 * u * u;
+          pts.push(new V3(x, y, z));
+          nrm.push(new V3(0, 0.35 * u, 1).normalize());
+          wid.push(0.0165 - 0.0030 * u);
+        }
+        // pivô no topo da franja: o vento levanta as pontas de leve
+        const pivotPos = new V3(0, 0.084, skinZ(0, 0.084));
+        const bangPivot = new THREE.Group();
+        bangPivot.position.copy(pivotPos);
+        const m = new THREE.Mesh(flatRibbon(pts, nrm, wid), stripMat);
+        m.position.copy(pivotPos).negate();
+        m.castShadow = true;
+        bangPivot.add(m);
+        hairFrame.add(bangPivot);
+        npcRig.bangPivots.push({ node: bangPivot, ph: i });
+      }
+
+      // ---- 4. BRINCOS: argola dourada fina com uma pérola, presos no lóbulo ----
+      const goldMat = new THREE.MeshStandardMaterial({ color: '#e0b765', roughness: 0.22, metalness: 1.0, envMapIntensity: 1.3 });
+      const pearlMat = new THREE.MeshStandardMaterial({ color: '#f4ece0', roughness: 0.28, metalness: 0.0, envMapIntensity: 0.9 });
+      for (const s of [-1, 1]) {
+        const earring = new THREE.Group();
+        earring.position.set(s * 0.0895, -0.060, -0.084);
+        const stud = new THREE.Mesh(new THREE.SphereGeometry(0.0036, 14, 10), goldMat);
+        const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.0150, 0.0019, 10, 40), goldMat);
+        hoop.rotation.y = Math.PI / 2;
+        hoop.position.set(s * 0.0022, -0.0150, 0);
+        const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.0050, 16, 12), pearlMat);
+        pearl.position.set(s * 0.0022, -0.0300, 0);
+        earring.add(stud, hoop, pearl);
+        hairFrame.add(earring);
+      }
+
+      // ---- 5. TRANÇAS: raiz na nuca (no cabelo), desce pelo lado do pescoço, pela frente do ombro, até perto da cintura ----
+      const neck = bones.Neck;
+      neck.updateWorldMatrix(true, false);
+      const holder = new THREE.Group();
+      holder.matrixAutoUpdate = false;
+      holder.matrix.copy(neck.matrixWorld).invert().multiply(avatarRoot.matrixWorld);
+      neck.add(holder);
+      holder.matrixWorldNeedsUpdate = true;
+      npcRig.braidPivots = [];
+
+      const toRoot = (p) => avatarRoot.worldToLocal(hairFrame.localToWorld(p.clone()));
+      const armJoint = { 1: new V3(), '-1': new V3() };
+      bones.LeftArm.getWorldPosition(armJoint[1]);
+      bones.RightArm.getWorldPosition(armJoint['-1']);
+      avatarRoot.worldToLocal(armJoint[1]);
+      avatarRoot.worldToLocal(armJoint['-1']);
+
+      for (const s of [-1, 1]) {
+        const napeFrame = new V3(s * 0.056, -0.083, -0.128);
+        const S = toRoot(napeFrame);
+        const AJ = armJoint[s];
+        const A = new V3(s * 0.094, AJ.y + 0.072, AJ.z + 0.046);
+        // o feixe passa POR CIMA do ombro (para fora e para a frente da gola), não por dentro dele
+        const mid = S.clone().lerp(A, 0.5).add(new V3(s * 0.022, 0.010, 0.030));
+
+        // feixe de cabelo liso da nuca até o ombro (preso ao pescoço)
+        const bundleCurve = new THREE.CatmullRomCurve3([S, mid, A], false, 'centripetal');
+        const bundle = new THREE.Mesh(new THREE.TubeGeometry(bundleCurve, 24, 0.0140, 10, false), tubeMat);
+        bundle.castShadow = true;
+        holder.add(bundle);
+
+        // pivô no ombro: a trança balança só um pouco, em torno desse ponto
+        const pivot = new THREE.Group();
+        pivot.position.copy(A);
+        holder.add(pivot);
+        npcRig.braidPivots.push({ node: pivot, side: s });
+
+        const rel = [
+          new V3(0, 0, 0),
+          new V3(s * 0.011, -0.105, 0.016),
+          new V3(s * 0.016, -0.210, 0.026),
+          new V3(s * 0.018, -0.315, 0.032),
+          new V3(s * 0.017, -0.420, 0.034)
+        ];
+        const braidCurve = new THREE.CatmullRomCurve3(rel, false, 'centripetal');
+        const SEG = 180;
+        const frames = braidCurve.computeFrenetFrames(SEG, false);
+        const TURNS = 10;
+        for (let k = 0; k < 3; k++) {
+          class StrandCurve extends THREE.Curve {
+            getPoint(t, target = new V3()) {
+              const base = braidCurve.getPointAt(t);
+              const i = Math.min(SEG, Math.round(t * SEG));
+              const ramp = 0.30 + 0.70 * smooth(Math.min(1, t / 0.12));
+              const end = 1 - 0.55 * smooth(Math.max(0, (t - 0.84) / 0.16));
+              const rr = 0.0092 * ramp * end;
+              const ang = k * Math.PI * 2 / 3 + t * TURNS * Math.PI * 2;
+              return target.copy(base)
+                .addScaledVector(frames.normals[i], Math.cos(ang) * rr)
+                .addScaledVector(frames.binormals[i], Math.sin(ang) * rr * 0.85);
+            }
+          }
+          const tube = new THREE.Mesh(new THREE.TubeGeometry(new StrandCurve(), 220, 0.0108, 8, false), tubeMat);
+          tube.castShadow = true;
+          pivot.add(tube);
+        }
+
+        // elástico dourado e a pontinha solta da trança
+        const endPt = braidCurve.getPointAt(1);
+        const tan = braidCurve.getTangentAt(1);
+        const tie = new THREE.Mesh(new THREE.TorusGeometry(0.0120, 0.0029, 10, 22), goldMat);
+        tie.position.copy(braidCurve.getPointAt(0.975));
+        tie.quaternion.setFromUnitVectors(new V3(0, 0, 1), tan);
+        pivot.add(tie);
+        for (let r = -1; r <= 1; r++) {
+          const pts = [], nrm = [], wid = [];
+          for (let k = 0; k <= 5; k++) {
+            const u = k / 5;
+            pts.push(endPt.clone().add(new V3(s * 0.002 + r * 0.004 * u, -0.004 - 0.040 * u, 0.0035 * u)));
+            nrm.push(new V3(0, 0, 1));
+            wid.push(0.0105 * (1 - 0.75 * u));
+          }
+          const m = new THREE.Mesh(flatRibbon(pts, nrm, wid), stripMat);
+          pivot.add(m);
+        }
+      }
+      npcRig.braidHolder = holder;
+    }
+
+    // ---- Esqueleto de braço: dois ossos + pólo do cotovelo; resolve no espaço do mundo ----
+    const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
+    function swingBone(bone, fromDir, toDir) {
+      _q1.setFromUnitVectors(fromDir.clone().normalize(), toDir.clone().normalize());
+      bone.getWorldQuaternion(_q2);
+      bone.parent.getWorldQuaternion(_q3);
+      bone.quaternion.copy(_q3.invert().multiply(_q1.multiply(_q2)));
+      bone.updateMatrixWorld(true);
+    }
+    function spinBone(bone, axis, ang) {
+      if (Math.abs(ang) < 1e-6) return;
+      _q1.setFromAxisAngle(axis.clone().normalize(), ang);
+      bone.getWorldQuaternion(_q2);
+      bone.parent.getWorldQuaternion(_q3);
+      bone.quaternion.copy(_q3.invert().multiply(_q1.multiply(_q2)));
+      bone.updateMatrixWorld(true);
+    }
+    const wpos = (bone) => bone.getWorldPosition(new THREE.Vector3());
+
+    function makeArm(bones, side) {
+      const p = side > 0 ? 'Left' : 'Right';
+      const arm = {
+        side,
+        upper: bones[p + 'Arm'], fore: bones[p + 'ForeArm'], hand: bones[p + 'Hand'],
+        mid1: bones[p + 'HandMiddle1'], idx1: bones[p + 'HandIndex1'], pin1: bones[p + 'HandPinky1'],
+        fingers: ['Index', 'Middle', 'Ring', 'Pinky'].map((f) => [1, 2, 3].map((j) => bones[`${p}Hand${f}${j}`])),
+      };
+      arm.L1 = wpos(arm.upper).distanceTo(wpos(arm.fore));
+      arm.L2 = wpos(arm.fore).distanceTo(wpos(arm.hand));
+      // Palma: normal = fingerDir x (indicador -> mindinho), com o sinal calibrado no T-pose (palma para baixo)
+      const fd = wpos(arm.mid1).sub(wpos(arm.hand));
+      const lat = wpos(arm.pin1).sub(wpos(arm.idx1));
+      arm.palmSign = new THREE.Vector3().crossVectors(fd, lat).y > 0 ? -1 : 1;
+      arm.curlSign = 1;
+      {
+        const f = fd.clone().normalize(), a = lat.clone().normalize();
+        const n = new THREE.Vector3().crossVectors(fd, lat).multiplyScalar(arm.palmSign).normalize();
+        arm.curlSign = new THREE.Vector3().crossVectors(a, f).dot(n) > 0 ? 1 : -1;
+      }
+      return arm;
+    }
+    function palmNormal(arm) {
+      const fd = wpos(arm.mid1).sub(wpos(arm.hand));
+      const lat = wpos(arm.pin1).sub(wpos(arm.idx1));
+      return new THREE.Vector3().crossVectors(fd, lat).multiplyScalar(arm.palmSign).normalize();
+    }
+
+    // Leva o pulso até o alvo (dois ossos), vira a palma para baixo e deixa a mão deitada na superfície
+    function solveArm(arm, target, pole, curl) {
+      const A = wpos(arm.upper), B = wpos(arm.fore);
+      const to = target.clone().sub(A);
+      const d = THREE.MathUtils.clamp(to.length(), Math.abs(arm.L1 - arm.L2) + 1e-3, (arm.L1 + arm.L2) * 0.999);
+      const dir = to.normalize();
+      const cosA = (arm.L1 * arm.L1 + d * d - arm.L2 * arm.L2) / (2 * arm.L1 * d);
+      const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+      const perp = pole.clone().sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+      const Bn = A.clone().addScaledVector(dir, arm.L1 * cosA).addScaledVector(perp, arm.L1 * sinA);
+      swingBone(arm.upper, B.clone().sub(A), Bn.clone().sub(A));
+      const B2 = wpos(arm.fore), C = wpos(arm.hand);
+      const Tn = A.clone().addScaledVector(dir, d);
+      swingBone(arm.fore, C.clone().sub(B2), Tn.clone().sub(B2));
+
+      // torção do antebraço: palma para baixo (com leve inclinação para dentro)
+      const B3 = wpos(arm.fore), C3 = wpos(arm.hand);
+      const axis = C3.clone().sub(B3).normalize();
+      const down = new THREE.Vector3(0, -1, 0);
+      const nPalm = palmNormal(arm);
+      const np = nPalm.clone().sub(axis.clone().multiplyScalar(nPalm.dot(axis))).normalize();
+      const dp = down.clone().sub(axis.clone().multiplyScalar(down.dot(axis))).normalize();
+      const ang = Math.atan2(axis.dot(new THREE.Vector3().crossVectors(np, dp)), np.dot(dp));
+      spinBone(arm.fore, axis, ang);
+
+      // mão deitada: dedos na horizontal, levemente para baixo
+      const h = wpos(arm.mid1).sub(wpos(arm.hand));
+      const flat = new THREE.Vector3(h.x, 0, h.z);
+      if (flat.lengthSq() < 1e-6) flat.set(axis.x, 0, axis.z);
+      flat.normalize();
+      flat.y = -0.06;
+      swingBone(arm.hand, h, flat);
+
+      // dedos relaxados, levemente curvados para a palma
+      const latW = wpos(arm.pin1).sub(wpos(arm.idx1)).normalize();
+      const base = [0.10, 0.15, 0.12, 0.10];
+      arm.fingers.forEach((joints, fi) => {
+        joints.forEach((jb, j) => {
+          if (!jb) return;
+          spinBone(jb, latW, arm.curlSign * (base[fi] + curl) * (j === 0 ? 0.8 : j === 1 ? 1.0 : 0.7));
+        });
+      });
+    }
+
+    // Pose de pé, apoiada no peitoril: pernas relaxadas aqui; a inclinação do tronco e a cabeça em finishNpcPose
+    function poseNpcContemplating(avatarRoot, bones) {
+      const X = new THREE.Vector3(1, 0, 0);
+      const Y = new THREE.Vector3(0, 1, 0);
+      const Z = new THREE.Vector3(0, 0, 1);
+      const deg = THREE.MathUtils.degToRad;
+
+      // Braços calibrados no T-pose do modelo, antes de qualquer giro
+      npcRig.arms = [makeArm(bones, 1), makeArm(bones, -1)];
+
+      // Em pé, peso levemente mais numa perna (contrapposto), joelhos macios
+      rotateBoneInModelSpace(bones.Hips, Z, deg(-1.4), avatarRoot);
+      rotateBoneInModelSpace(bones.LeftUpLeg, Z, deg(2.0), avatarRoot);
+      rotateBoneInModelSpace(bones.LeftUpLeg, X, deg(1.5), avatarRoot);
+      rotateBoneInModelSpace(bones.LeftLeg, X, deg(2.5), avatarRoot);
+      rotateBoneInModelSpace(bones.RightUpLeg, Z, deg(-3.0), avatarRoot);
+      rotateBoneInModelSpace(bones.RightUpLeg, X, deg(-4), avatarRoot);
+      rotateBoneInModelSpace(bones.RightUpLeg, Y, deg(-5), avatarRoot);
+      rotateBoneInModelSpace(bones.RightLeg, X, deg(8), avatarRoot);
+      rotateBoneInModelSpace(bones.RightFoot, X, deg(-4), avatarRoot);
+    }
+
+    // Peitoril da janela (topo) e onde as mãos pousam
+    const SILL_TOP_Y = 0.814;
+    const HAND_REST_Y = SILL_TOP_Y + 0.031;
+    const HAND_REST_Z = -3.19;
+
+    function finishNpcPose(avatarRoot, bones) {
+      const X = new THREE.Vector3(1, 0, 0);
+      const Y = new THREE.Vector3(0, 1, 0);
+      const Z = new THREE.Vector3(0, 0, 1);
+      const deg = THREE.MathUtils.degToRad;
+      const [armL, armR] = npcRig.arms;
+      avatarRoot.updateMatrixWorld(true);
+
+      // Tronco inclinado para a frente até as mãos alcançarem o peitoril com o cotovelo um pouco dobrado
+      const spineNames = ['Spine', 'Spine1', 'Spine2'];
+      const share = [0.36, 0.34, 0.30];
+      const rest = {};
+      for (const n of spineNames) rest[n] = bones[n].quaternion.clone();
+      let alpha = 26;
+      for (; alpha <= 54; alpha += 2) {
+        for (const n of spineNames) { bones[n].quaternion.copy(rest[n]); bones[n].updateMatrixWorld(true); }
+        spineNames.forEach((n, i) => rotateBoneInModelSpace(bones[n], X, deg(alpha * share[i]), avatarRoot));
+        const ok = [armL, armR].every((a) => {
+          const s = wpos(a.upper);
+          return s.distanceTo(new THREE.Vector3(s.x, HAND_REST_Y, HAND_REST_Z)) <= (a.L1 + a.L2) * 0.965;
+        });
+        if (ok) break;
+      }
+      npcRig.leanDeg = alpha;
+      // leve torção do tronco para o lado do pôr do sol (direita dela)
+      spineNames.forEach((n) => rotateBoneInModelSpace(bones[n], Y, deg(-3), avatarRoot));
+
+      // Cabeça levantada (olhar um pouco abaixo do horizonte) e virada para o mar/pôr do sol, sem rigidez
+      const pitch = deg(4) - deg(alpha);
+      rotateBoneInModelSpace(bones.Neck, X, pitch * 0.42, avatarRoot);
+      rotateBoneInModelSpace(bones.Head, X, pitch * 0.58, avatarRoot);
+      rotateBoneInModelSpace(bones.Neck, Y, deg(-20), avatarRoot);
+      rotateBoneInModelSpace(bones.Head, Y, deg(-33), avatarRoot);
+      rotateBoneInModelSpace(bones.Head, Z, deg(2.5), avatarRoot);
+      rotateBoneInModelSpace(bones.LeftShoulder, Z, deg(-3), avatarRoot);
+      rotateBoneInModelSpace(bones.RightShoulder, Z, deg(3), avatarRoot);
+      avatarRoot.updateMatrixWorld(true);
+
+      // Alvos das mãos (mundo) em cima do peitoril, um pouco mais juntos que os ombros
+      const sL = wpos(armL.upper), sR = wpos(armR.upper);
+      const cx = (sL.x + sR.x) * 0.5;
+      npcRig.armTargets = [
+        new THREE.Vector3(sL.x + (cx - sL.x) * 0.22, HAND_REST_Y, HAND_REST_Z),
+        new THREE.Vector3(sR.x + (cx - sR.x) * 0.22, HAND_REST_Y, HAND_REST_Z)
+      ];
+      // Cotovelos para fora e um pouco para trás (no espaço da personagem)
+      const rootQ = new THREE.Quaternion();
+      avatarRoot.getWorldQuaternion(rootQ);
+      npcRig.armPoles = [
+        new THREE.Vector3(0.8, -0.25, -0.55).applyQuaternion(rootQ).normalize(),
+        new THREE.Vector3(-0.8, -0.25, -0.55).applyQuaternion(rootQ).normalize()
+      ];
+
+      // Poses-base que o loop de animação restaura a cada quadro
+      const animated = ['Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'RightShoulder'];
+      for (const k of Object.keys(bones)) {
+        if (/^(Left|Right)(Arm|ForeArm|Hand|Hand(Index|Middle|Ring|Pinky|Thumb)[123])$/.test(k)) animated.push(k);
+      }
+      npcRig.animBones = animated.filter((k) => bones[k]);
+      for (const k of npcRig.animBones) npcRig.baseQuats[k] = bones[k].quaternion.clone();
+      npcRig.armCurl = [0, 0];
+      solveNpcArms(0);
+    }
+
+    // ---- Diretor de gestos: um movimento pequeno por vez, depois uma pausa; nada de ir-e-voltar em ciclo ----
+    // Cada canal anda suavemente do valor atual até um alvo novo e FICA lá até o próximo gesto sortear outro.
+    const gestureCh = {};
+    const gestureDir = { next: 3.0, last: '', queue: [] };
+    for (const k of ['headYaw', 'headPitch', 'lean', 'hipRoll', 'smile', 'lx', 'lz', 'ly', 'rx', 'rz', 'ry']) {
+      gestureCh[k] = { v: 0, from: 0, to: 0, t0: 0, dur: 1 };
+    }
+    const smoother = (u) => { u = Math.min(1, Math.max(0, u)); return u * u * u * (u * (u * 6 - 15) + 10); };
+    function moveCh(name, to, t, dur) {
+      const c = gestureCh[name];
+      c.from = c.v; c.to = to; c.t0 = t; c.dur = dur;
+    }
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    function runGestureDirector(t) {
+      for (const k in gestureCh) {
+        const c = gestureCh[k];
+        c.v = c.from + (c.to - c.from) * smoother((t - c.t0) / c.dur);
+      }
+      if (t < gestureDir.next) return;
+      // gesto em duas partes (ex.: mão levanta e depois pousa em outro ponto)
+      if (gestureDir.queue.length) {
+        const step = gestureDir.queue.shift();
+        step(t);
+        return;
+      }
+      const options = ['olharMar', 'olharPor', 'olharBaixo', 'peso', 'maoD', 'maoE', 'sorriso', 'respirar'].filter((o) => o !== gestureDir.last);
+      const pick = options[Math.floor(Math.random() * options.length)];
+      gestureDir.last = pick;
+      let busy = 0;
+      if (pick === 'olharMar') { moveCh('headYaw', rnd(0.20, 0.38), t, rnd(2.0, 3.2)); moveCh('headPitch', rnd(0.0, 0.04), t, 2.4); busy = 3.2; }
+      else if (pick === 'olharPor') { moveCh('headYaw', rnd(-0.10, 0.06), t, rnd(2.0, 3.0)); moveCh('headPitch', rnd(-0.01, 0.03), t, 2.4); busy = 3.0; }
+      else if (pick === 'olharBaixo') { moveCh('headPitch', rnd(-0.07, -0.03), t, 1.8); moveCh('headYaw', gestureCh.headYaw.v + rnd(-0.05, 0.05), t, 1.8); busy = 1.8; }
+      else if (pick === 'peso') { moveCh('hipRoll', rnd(-0.025, 0.025), t, rnd(2.2, 3.4)); moveCh('lean', rnd(-0.04, 0.03), t, 2.8); busy = 3.4; }
+      else if (pick === 'sorriso') { moveCh('smile', rnd(0.05, 0.32), t, rnd(1.2, 2.0)); busy = 2.0; }
+      else if (pick === 'respirar') { moveCh('lean', gestureCh.lean.v - 0.03, t, 1.6); busy = 1.6; gestureDir.queue.push((t2) => { moveCh('lean', gestureCh.lean.v + 0.03, t2, 2.0); gestureDir.next = t2 + 2.4; }); }
+      else if (pick === 'maoD') {
+        // levanta um pouco os dedos/mão direita, e depois pousa em outro ponto do peitoril
+        moveCh('ry', 0.034, t, 1.2); moveCh('rx', gestureCh.rx.v + rnd(-0.02, 0.02), t, 1.2); busy = 1.3;
+        const nx = rnd(-0.035, 0.035), nz = rnd(-0.02, 0.03);
+        gestureDir.queue.push((t2) => { moveCh('rx', nx, t2, 1.4); moveCh('rz', nz, t2, 1.4); moveCh('ry', 0, t2, 1.6); gestureDir.next = t2 + 1.8; });
+      } else if (pick === 'maoE') {
+        moveCh('ly', 0.03, t, 1.2); busy = 1.3;
+        const nx = rnd(-0.035, 0.035), nz = rnd(-0.02, 0.03);
+        gestureDir.queue.push((t2) => { moveCh('lx', nx, t2, 1.4); moveCh('lz', nz, t2, 1.4); moveCh('ly', 0, t2, 1.6); gestureDir.next = t2 + 1.8; });
+      }
+      // pausa antes do próximo gesto: ela fica parada, só respirando e com o vento mexendo o cabelo
+      gestureDir.next = t + busy + rnd(2.2, 5.5);
+    }
+
+    // Vento suave e irregular (soma de ondas lentas fora de fase), 0..1
+    function windGust(t) {
+      const w = 0.55 * Math.sin(t * 0.37 + 1.1) + 0.30 * Math.sin(t * 0.91 + 0.4) + 0.15 * Math.sin(t * 1.73 + 2.2);
+      const g = 0.5 + 0.5 * w;
+      return g * g * (3 - 2 * g);
+    }
+
+    function solveNpcArms() {
+      const arms = npcRig.arms;
+      if (!arms || !npcRig.armTargets) return;
+      const c = gestureCh;
+      const tl = npcRig.armTargets[0].clone();
+      tl.x += c.lx.v; tl.z += c.lz.v; tl.y += c.ly.v;
+      const tr = npcRig.armTargets[1].clone();
+      tr.x += c.rx.v; tr.z += c.rz.v; tr.y += c.ry.v;
+      // dedos relaxam um pouco mais quando a mão está no ar
+      solveArm(arms[0], tl, npcRig.armPoles[0], c.ly.v * 6.0);
+      solveArm(arms[1], tr, npcRig.armPoles[1], c.ry.v * 6.0);
+    }
+
+    // Usamos Hispanic_F_2_Casual como base porque NÃO tem a peruca h_wig cobrindo o rosto e já traz modelagem de vestido nativo!
+    const NPC_MODEL_URL = 'https://cdn.jsdelivr.net/gh/c-frame/valid-avatars-glb@c539a28/avatars/Hispanic/Hispanic_F_2_Casual.glb';
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+
+    const npcLoadPromise = new Promise((resolve) => {
+      gltfLoader.load(
+        NPC_MODEL_URL,
+        (gltf) => {
+          const avatar = gltf.scene;
+          const maxAniso = renderer.capabilities.getMaxAnisotropy();
+          let customAtlasTex = null;
+
+          avatar.traverse((obj) => {
+            if (obj.isBone) {
+              npcRig.bones[obj.name] = obj;
+            }
+            if (obj.isMesh) {
+              if (obj.name === 'H_DDS_HighRes') npcRig.faceMesh = obj;
+              if (obj.name === 'h_wig') {
+                obj.visible = false;
+                return;
+              }
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              obj.frustumCulled = false;
+
+              const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+              for (const m of mats) {
+                if (!m) continue;
+                if (obj.name === 'H_DDS_HighRes' && m.map && m.map.image && !npcRig.swayU) {
+                  addDressSway(obj, m, m.map.image);
+                }
+                if (m.map && m.map.image) {
+                  if (!customAtlasTex) {
+                    customAtlasTex = customizeGirlfriendAtlas(m.map.image, maxAniso);
+                  }
+                  m.map = customAtlasTex;
+                }
+                if (m.normalMap) {
+                  m.normalMap.anisotropy = maxAniso;
+                  m.normalScale = new THREE.Vector2(0.75, 0.75);
+                }
+                // Pele e tecido de linho/algodão com resposta física natural estilo GTA V (sem aspecto plástico/gelado)
+                m.roughness = 0.64;
+                m.metalness = 0.02;
+                m.envMapIntensity = 0.90;
+                m.needsUpdate = true;
+              }
+            }
+          });
+
+          personGroup.add(avatar);
+          npcRig.root = avatar;
+
+          // Aplicar pose em pé relaxada e natural
+          poseNpcContemplating(avatar, npcRig.bones);
+
+          // Calibrar altura exata para que os pés toquem perfeitamente o piso (y = 0)
+          avatar.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(avatar);
+          if (isFinite(box.min.y)) {
+            avatar.position.y -= box.min.y;
+            avatar.updateMatrixWorld(true);
+          }
+
+          // Tronco inclinado, cabeça virada para o mar e mãos no peitoril (com os pés já no chão)
+          finishNpcPose(avatar, npcRig.bones);
+
+          // Cabelo natural, brincos e tranças nas coordenadas exatas pós-pose
+          attachGirlfriendBraidsAndDress(avatar, npcRig.bones, maxAniso);
+
+          npcRig.loaded = true;
+          resolve(true);
+        },
+        undefined,
+        (err) => {
+          console.warn('Falha ao carregar avatar GLB:', err);
+          resolve(false);
+        }
+      );
+    });
+
+    function updateNpcAnimation(t) {
+      if (!npcRig.loaded || !npcRig.root) return;
+      const b = npcRig.bones;
+      const q = npcRig.baseQuats;
+      const X = new THREE.Vector3(1, 0, 0);
+      const Y = new THREE.Vector3(0, 1, 0);
+      const Z = new THREE.Vector3(0, 0, 1);
+      const root = npcRig.root;
+
+      // Volta à pose-base e aplica só movimentos pequenos
+      for (const key of npcRig.animBones) {
+        if (b[key] && q[key]) b[key].quaternion.copy(q[key]);
+      }
+      root.updateMatrixWorld(true);
+
+      runGestureDirector(t);
+      const gc = gestureCh;
+      const gust = windGust(t);
+      const breath = Math.sin(t * 1.25);
+
+      // Respiração (contínua e bem discreta) + o que o gesto da vez pediu
+      rotateBoneInModelSpace(b.Spine, Z, gc.hipRoll.v, root);
+      rotateBoneInModelSpace(b.Spine, X, gc.lean.v * 0.4, root);
+      rotateBoneInModelSpace(b.Spine1, X, gc.lean.v * 0.35 - breath * 0.006, root);
+      rotateBoneInModelSpace(b.Spine2, X, gc.lean.v * 0.25 - breath * 0.008, root);
+      rotateBoneInModelSpace(b.LeftShoulder, Z, breath * 0.005, root);
+      rotateBoneInModelSpace(b.RightShoulder, Z, -breath * 0.005, root);
+      rotateBoneInModelSpace(b.Neck, Y, gc.headYaw.v * 0.42, root);
+      rotateBoneInModelSpace(b.Head, Y, gc.headYaw.v * 0.58, root);
+      rotateBoneInModelSpace(b.Neck, X, gc.headPitch.v * 0.4, root);
+      rotateBoneInModelSpace(b.Head, X, gc.headPitch.v * 0.6, root);
+      rotateBoneInModelSpace(b.Head, Z, gc.hipRoll.v * 0.8, root);
+
+      // Mãos presas ao peitril (o tronco respira, as mãos ficam no lugar)
+      solveNpcArms();
+
+      // Vento: tranças e franja balançam suave, o vestido ondula na barra
+      if (npcRig.braidPivots) {
+        for (const bp of npcRig.braidPivots) {
+          bp.node.rotation.x = 0.045 + 0.11 * gust + Math.sin(t * 0.8 + bp.side) * 0.012;
+          bp.node.rotation.z = bp.side * (0.015 + 0.05 * gust) + Math.sin(t * 0.6 + bp.side * 2.0) * 0.010;
+        }
+      }
+      if (npcRig.bangPivots) {
+        for (const bp of npcRig.bangPivots) {
+          bp.node.rotation.x = -(0.012 + 0.07 * gust * (0.75 + 0.25 * Math.sin(bp.ph * 1.7 + t * 0.9)));
+          bp.node.rotation.z = Math.sin(bp.ph * 2.3 + t * 0.7) * 0.012 * gust;
+        }
+      }
+      if (npcRig.swayU) {
+        npcRig.swayU.uSwayTime.value = t;
+        npcRig.swayU.uWind.value = gust;
+      }
+
+      // Piscar em intervalos irregulares e sorriso discreto
+      const fm = npcRig.faceMesh;
+      if (fm && fm.morphTargetInfluences && fm.morphTargetDictionary) {
+        const d = fm.morphTargetDictionary;
+        const bl = npcRig.blink || (npcRig.blink = { next: 2.0, t0: -9 });
+        if (t >= bl.next) { bl.t0 = t; bl.next = t + 2.4 + Math.random() * 4.2; }
+        const u = (t - bl.t0) / 0.17;
+        const blink = u >= 0 && u < 1 ? Math.sin(Math.PI * u) : 0;
+        const set = (name, v) => { const i = d['h_expressions.' + name]; if (i !== undefined) fm.morphTargetInfluences[i] = v; };
+        set('ReyeClose_h', blink);
+        set('LeyeClose_h', blink);
+        const smile = 0.16 + gc.smile.v;
+        set('RsmileClose_h', smile);
+        set('LsmileClose_h', smile);
+        // sobrancelhas relaxadas (sem franzir)
+        set('RbrowUp_h', 0.30);
+        set('LbrowUp_h', 0.30);
+      }
+    }
+
+    // =========================================================================
+    // 12. MOBILIÁRIO RICO (TAPETE BOUCLÉ, CAMA ESCULPIDA, APARADOR ESQUERDO, PLANTA 3D)
+    // =========================================================================
+
+    // Tapete orgânico de lã bouclé (sem azulejos!) com franjas sutis nas pontas
+    const rugGroup = new THREE.Group();
+    rugGroup.position.set(-0.55, 0, 0.25);
+    const rugAO = createContactShadow(1.52, 1.76, 0.35);
+    rugAO.position.y = 0.001;
+    rugGroup.add(rugAO);
+
+    const rug = new THREE.Mesh(new RoundedBoxGeometry(2.85, 0.016, 3.35, 3, 0.006), rugMat);
+    rug.position.y = 0.008;
+    rug.receiveShadow = true;
+    rugGroup.add(rug);
+
+    // Franjinhas delicadas nas extremidades do tapete
+    const fringeMat = new THREE.MeshStandardMaterial({ color: '#d5c7b2', roughness: 0.96 });
+    for (const sz of [-1, 1]) {
+      for (let fx = -1.36; fx <= 1.36; fx += 0.09) {
+        const f = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.004, 0.065), fringeMat);
+        f.position.set(fx, 0.003, sz * 1.70);
+        rugGroup.add(f);
+      }
+    }
+    scene.add(rugGroup);
+
+    // ---- APARADOR NA PAREDE ESQUERDA (PREENCHE O CANTO VAZIO DO OVERVIEW!) ----
+    const consoleGroup = new THREE.Group();
+    consoleGroup.position.set(-3.12, 0, -1.78);
+    scene.add(consoleGroup);
+
+    const consoleAO = createContactShadow(0.32, 0.68, 0.50);
+    consoleAO.position.y = 0.002;
+    consoleGroup.add(consoleAO);
+
+    const consoleTop = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.035, 1.18, 3, 0.008), walnutMat);
+    consoleTop.position.y = 0.74;
+    consoleTop.castShadow = true;
+    consoleTop.receiveShadow = true;
+    consoleGroup.add(consoleTop);
+
+    const consoleBody = new THREE.Mesh(new RoundedBoxGeometry(0.39, 0.16, 1.12, 2, 0.006), walnutMat);
+    consoleBody.position.y = 0.64;
+    consoleBody.castShadow = true;
+    consoleGroup.add(consoleBody);
+
+    for (const sz of [-0.28, 0.28]) {
+      const pull = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.09, 10), brassMat);
+      pull.rotation.x = Math.PI / 2;
+      pull.position.set(0.205, 0.64, sz);
+      consoleGroup.add(pull);
+    }
+    for (const sx of [-0.15, 0.15]) {
+      for (const sz of [-0.48, 0.48]) {
+        const cLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.012, 0.56, 12), darkWoodMat);
+        cLeg.position.set(sx, 0.28, sz);
+        cLeg.castShadow = true;
+        consoleGroup.add(cLeg);
+      }
+    }
+
+    // Vaso artesanal com ramos de eucalipto seco + pilha de livros sobre o aparador
+    const vasePts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(0.055, 0.0),
+      new THREE.Vector2(0.078, 0.08),
+      new THREE.Vector2(0.068, 0.16),
+      new THREE.Vector2(0.032, 0.22),
+      new THREE.Vector2(0.036, 0.25),
+      new THREE.Vector2(0.028, 0.25)
+    ];
+    const consoleVase = new THREE.Mesh(new THREE.LatheGeometry(vasePts, 32), lampBaseMat);
+    consoleVase.position.set(0.0, 0.758, -0.30);
+    consoleVase.castShadow = true;
+    consoleGroup.add(consoleVase);
+
+    const dryBranchMat = new THREE.MeshStandardMaterial({ color: '#5b4b3c', roughness: 0.90 });
+    const eucaLeafMat = new THREE.MeshStandardMaterial({ color: '#647360', roughness: 0.78, side: THREE.DoubleSide });
+    for (let b = 0; b < 4; b++) {
+      const ang = b * 1.5 + 0.4;
+      const bCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.96, -0.30),
+        new THREE.Vector3(Math.cos(ang) * 0.06, 1.14, -0.30 + Math.sin(ang) * 0.06),
+        new THREE.Vector3(Math.cos(ang) * 0.14, 1.32 + b * 0.03, -0.30 + Math.sin(ang) * 0.12)
+      ]);
+      const branch = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 10, 0.004, 6, false), dryBranchMat);
+      consoleGroup.add(branch);
+      for (let k = 0; k < 5; k++) {
+        const pt = bCurve.getPoint(0.45 + k * 0.13);
+        const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.018, 10), eucaLeafMat);
+        leaf.position.copy(pt);
+        leaf.rotation.set(0.5 + k * 0.4, ang + k, 0.3);
+        consoleGroup.add(leaf);
+      }
+    }
+
+    // Pilha de 2 livros de arte + vela pequena no aparador
+    const artBook1 = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.028, 0.30, 2, 0.004), new THREE.MeshStandardMaterial({ color: '#c8b8a2', roughness: 0.85 }));
+    artBook1.position.set(0.0, 0.772, 0.24);
+    artBook1.rotation.y = 0.08;
+    artBook1.castShadow = true;
+    consoleGroup.add(artBook1);
+
+    const artBook2 = new THREE.Mesh(new RoundedBoxGeometry(0.20, 0.024, 0.25, 2, 0.004), new THREE.MeshStandardMaterial({ color: '#586454', roughness: 0.84 }));
+    artBook2.position.set(0.0, 0.798, 0.23);
+    artBook2.rotation.y = -0.10;
+    artBook2.castShadow = true;
+    consoleGroup.add(artBook2);
+
+    // ---- CAMA DE CASAL ESCULPIDA À ESQUERDA ----
+    const bedGroup = new THREE.Group();
+    bedGroup.position.set(-2.22, 0, 0.75);
+    scene.add(bedGroup);
+
+    const bedAO = createContactShadow(1.24, 1.02, 0.62);
+    bedAO.position.y = 0.003;
+    bedGroup.add(bedAO);
+
+    const bedBase = new THREE.Mesh(new RoundedBoxGeometry(2.12, 0.24, 1.66, 3, 0.018), walnutMat);
+    bedBase.position.set(0, 0.20, 0);
+    bedBase.castShadow = true;
+    bedBase.receiveShadow = true;
+    bedGroup.add(bedBase);
+
+    for (const sx of [-0.94, 0.94]) {
+      for (const sz of [-0.72, 0.72]) {
+        const bLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.022, 0.14, 14), darkWoodMat);
+        bLeg.position.set(sx, 0.07, sz);
+        bedGroup.add(bLeg);
+      }
+    }
+
+    // Cabeceira ripada de madeira nobre + almofadão em 3 gomos verticais
+    const headboardBack = new THREE.Mesh(new RoundedBoxGeometry(0.06, 1.18, 1.78, 2, 0.010), darkWoodMat);
+    headboardBack.position.set(-1.07, 0.62, 0);
+    headboardBack.castShadow = true;
+    bedGroup.add(headboardBack);
+
+    for (let z = -0.84; z <= 0.84; z += 0.075) {
+      const slat = new THREE.Mesh(new RoundedBoxGeometry(0.042, 1.14, 0.048, 2, 0.006), walnutMat);
+      slat.position.set(-1.03, 0.62, z);
+      slat.castShadow = true;
+      slat.receiveShadow = true;
+      bedGroup.add(slat);
+    }
+
+    // 3 gomos estofados macios na cabeceira
+    for (let g = -1; g <= 1; g++) {
+      const panel = new THREE.Mesh(new RoundedBoxGeometry(0.085, 0.58, 0.50, 4, 0.028), creamLinenMat);
+      panel.position.set(-0.98, 0.80, g * 0.52);
+      panel.castShadow = true;
+      panel.receiveShadow = true;
+      bedGroup.add(panel);
+    }
+
+    // Colchão com quinas arredondadas
+    const mattress = new THREE.Mesh(new RoundedBoxGeometry(2.02, 0.23, 1.56, 4, 0.045), creamLinenMat);
+    mattress.position.set(0.02, 0.43, 0);
+    mattress.castShadow = true;
+    mattress.receiveShadow = true;
+    bedGroup.add(mattress);
+
+    // Edredom fofo com caimento real nas bordas e ondulações orgânicas
+    const duvetGeo = new THREE.BoxGeometry(1.58, 0.28, 1.72, 22, 8, 22);
+    {
+      const p = duvetGeo.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const nx = x / 0.79, nz = z / 0.86;
+        const puff = (1.0 - nx * nx * 0.30) * (1.0 - nz * nz * 0.25);
+        const folds = Math.sin(x * 8.5 + z * 4.2) * 0.011 + Math.cos(z * 9.0 - x * 3.0) * 0.008;
+        if (y > 0) {
+          y += puff * 0.055 + folds;
+        }
+        // Caimento macio nas laterais
+        if (Math.abs(nz) > 0.84) {
+          const drop = (Math.abs(nz) - 0.84) / 0.16;
+          y -= drop * 0.065;
+        }
+        if (nx > 0.86) {
+          y -= ((nx - 0.86) / 0.14) * 0.055;
+        }
+        p.setXYZ(i, x, y, z);
+      }
+      duvetGeo.computeVertexNormals();
+    }
+    const duvet = new THREE.Mesh(duvetGeo, creamLinenMat);
+    duvet.position.set(0.25, 0.455, 0);
+    duvet.castShadow = true;
+    duvet.receiveShadow = true;
+    bedGroup.add(duvet);
+
+    // Dobra superior do lençol virada sobre o edredom
+    const sheetFold = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.065, 1.66, 4, 0.026), creamLinenMat);
+    sheetFold.position.set(-0.46, 0.585, 0);
+    sheetFold.rotation.z = 0.06;
+    sheetFold.castShadow = true;
+    bedGroup.add(sheetFold);
+
+    // Manta de tricô terracota com dobras orgânicas caindo aos pés da cama
+    const throwGeo = new THREE.BoxGeometry(0.56, 0.31, 1.76, 12, 8, 20);
+    {
+      const p = throwGeo.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const nz = z / 0.88;
+        if (y > 0) {
+          y += (1.0 - nz * nz * 0.35) * 0.028 + Math.sin(z * 10.5 + x * 6.0) * 0.008;
+        }
+        if (Math.abs(nz) > 0.85) {
+          y -= ((Math.abs(nz) - 0.85) / 0.15) * 0.07;
+        }
+        p.setXYZ(i, x, y, z);
+      }
+      throwGeo.computeVertexNormals();
+    }
+    const throwBlanket = new THREE.Mesh(throwGeo, terracottaMat);
+    throwBlanket.position.set(0.75, 0.485, 0);
+    throwBlanket.castShadow = true;
+    throwBlanket.receiveShadow = true;
+    bedGroup.add(throwBlanket);
+
+    // Helper: Travesseiro/Almofada ESCULPIDA retangular fofa com cantos beliscados (ADEUS ESFERAS!)
+    function createSculptedPillow(w, h, d, mat) {
+      const geo = new THREE.BoxGeometry(w, h, d, 16, 10, 16);
+      const p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const nx = x / (w * 0.5);
+        const ny = y / (h * 0.5);
+        const nz = z / (d * 0.5);
+        // Centro estufado e bordas beliscadas (forma real de travesseiro/almofada!)
+        const edgePinch = Math.max(0.18, (1.0 - nx * nx * 0.72) * (1.0 - nz * nz * 0.72));
+        y *= edgePinch;
+        // Leve abaulamento nos 4 lados e cantos sutilmente pontudos
+        const cornerPull = 1.0 + 0.06 * (nx * nx * nz * nz);
+        x *= cornerPull * (1.0 - ny * ny * 0.08);
+        z *= cornerPull * (1.0 - ny * ny * 0.08);
+        // Micro-vinco natural no centro
+        y += Math.sin(nx * 5.0 + nz * 4.0) * 0.004 * (1.0 - Math.abs(nx));
+        p.setXYZ(i, x, y, z);
+      }
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    for (const pz of [-0.39, 0.39]) {
+      const pillow = createSculptedPillow(0.40, 0.18, 0.68, creamLinenMat);
+      pillow.position.set(-0.74, 0.67, pz);
+      pillow.rotation.z = -0.42;
+      pillow.rotation.y = pz < 0 ? 0.04 : -0.04;
+      bedGroup.add(pillow);
+    }
+
+    const cushion1 = createSculptedPillow(0.16, 0.38, 0.40, terracottaMat);
+    cushion1.position.set(-0.54, 0.68, -0.22);
+    cushion1.rotation.z = -0.26;
+    cushion1.rotation.y = 0.18;
+    bedGroup.add(cushion1);
+
+    const cushion2 = createSculptedPillow(0.15, 0.35, 0.37, oliveFabricMat);
+    cushion2.position.set(-0.52, 0.66, 0.24);
+    cushion2.rotation.z = -0.22;
+    cushion2.rotation.y = -0.20;
+    bedGroup.add(cushion2);
+
+    // ---- MESA DE CABECEIRA + ABAJUR QUENTE (ESQUERDA) ----
+    const nightGroup = new THREE.Group();
+    nightGroup.position.set(-3.04, 0, -0.44);
+    scene.add(nightGroup);
+
+    const nightAO = createContactShadow(0.32, 0.32, 0.50);
+    nightAO.position.y = 0.002;
+    nightGroup.add(nightAO);
+
+    const nightBody = new THREE.Mesh(new RoundedBoxGeometry(0.48, 0.34, 0.50, 3, 0.012), walnutMat);
+    nightBody.position.y = 0.36;
+    nightBody.castShadow = true;
+    nightBody.receiveShadow = true;
+    nightGroup.add(nightBody);
+
+    const drawerKnob = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 10), brassMat);
+    drawerKnob.position.set(0.25, 0.38, 0);
+    nightGroup.add(drawerKnob);
+
+    for (const sx of [-0.19, 0.19]) {
+      for (const sz of [-0.20, 0.20]) {
+        const nLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.011, 0.20, 12), darkWoodMat);
+        nLeg.position.set(sx, 0.10, sz);
+        nightGroup.add(nLeg);
+      }
+    }
+
+    const nightLampBase = new THREE.Mesh(new THREE.LatheGeometry(lampBasePts, 32), ceramicMat);
+    nightLampBase.position.set(-0.02, 0.53, 0.02);
+    nightLampBase.castShadow = true;
+    nightGroup.add(nightLampBase);
+
+    const nightShade = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.130, 0.18, 36, 1, true), shadeMat);
+    nightShade.position.set(-0.02, 0.78, 0.02);
+    nightGroup.add(nightShade);
+
+    // ---- PLANTA DE INTERIOR FOTORREALISTA (FICUS LYRATA COM FOLHAS 3D ARQUEADAS!) ----
+    const plantGroup = new THREE.Group();
+    plantGroup.position.set(2.44, 0, -2.38);
+    scene.add(plantGroup);
+
+    const plantAO = createContactShadow(0.32, 0.32, 0.55);
+    plantAO.position.y = 0.002;
+    plantGroup.add(plantAO);
+
+    // Suporte baixo de madeira sob o vaso
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const pLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.012, 0.14, 10), darkWoodMat);
+      pLeg.position.set(Math.cos(ang) * 0.17, 0.07, Math.sin(ang) * 0.17);
+      plantGroup.add(pLeg);
+    }
+
+    const potPBR = createCeramicPBR('#b57554', 'rgba(72, 42, 26, 0.42)');
+    const potMat = new THREE.MeshStandardMaterial({
+      map: potPBR.map,
+      normalMap: potPBR.normalMap,
+      normalScale: new THREE.Vector2(0.8, 0.8),
+      roughness: 0.80
+    });
+    const potPts = [
+      new THREE.Vector2(0.0, 0.06),
+      new THREE.Vector2(0.145, 0.06),
+      new THREE.Vector2(0.195, 0.31),
+      new THREE.Vector2(0.208, 0.40),
+      new THREE.Vector2(0.188, 0.40),
+      new THREE.Vector2(0.176, 0.34),
+      new THREE.Vector2(0.0, 0.33)
+    ];
+    const pot = new THREE.Mesh(new THREE.LatheGeometry(potPts, 36), potMat);
+    pot.castShadow = true;
+    pot.receiveShadow = true;
+    plantGroup.add(pot);
+
+    const soil = new THREE.Mesh(
+      new THREE.CircleGeometry(0.178, 24),
+      new THREE.MeshStandardMaterial({ color: '#2b1e15', roughness: 0.96 })
+    );
+    soil.rotation.x = -Math.PI / 2;
+    soil.position.y = 0.345;
+    plantGroup.add(soil);
+
+    // Geometria de folha 3D arqueada com nervura central em V e bordas levemente onduladas
+    function createCurvedLeafGeometry() {
+      const segU = 10, segV = 14;
+      const geo = new THREE.PlaneGeometry(0.22, 0.34, segU, segV);
+      geo.translate(0, 0.17, 0); // pivô na base do pecíolo
+      const p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x0 = p.getX(i); // -0.11 .. 0.11
+        const y0 = p.getY(i); // 0 .. 0.34
+        const u = Math.max(-1, Math.min(1, x0 / 0.11));  // -1 .. 1
+        const v = Math.max(0.0001, Math.min(1, y0 / 0.34)); // clamp > 0 evita Math.pow(negativo) -> NaN!
+
+        // Silhueta orgânica de Ficus Lyrata (estreita na base, larga no topo, ponta delicada)
+        const silhouette = Math.sin(Math.pow(v, 0.72) * Math.PI) * (0.76 + 0.32 * Math.sin(v * Math.PI * 1.4));
+        const x = x0 * silhouette;
+        // Curvatura arqueada graciosa para baixo + calha em V na nervura + leve ondulação de borda
+        const archZ = Math.pow(v, 1.85) * 0.085;
+        const vFold = -Math.abs(u) * 0.018 * silhouette;
+        const ruffle = Math.sin(v * 14.0) * 0.005 * Math.abs(u) * silhouette;
+        const y = y0 * (1.0 - v * 0.12);
+        p.setXYZ(i, x, y, archZ + vFold + ruffle);
+      }
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    const leafGeo3D = createCurvedLeafGeometry();
+    const leafPBR = createLeafPBR();
+    const leafMat = new THREE.MeshPhysicalMaterial({
+      map: leafPBR.map,
+      normalMap: leafPBR.normalMap,
+      normalScale: new THREE.Vector2(0.85, 0.85),
+      roughness: 0.36,
+      metalness: 0.02,
+      clearcoat: 0.24,
+      clearcoatRoughness: 0.32,
+      sheen: 0.22,
+      sheenColor: new THREE.Color('#7da85c'),
+      side: THREE.DoubleSide
+    });
+    const stemMat = new THREE.MeshStandardMaterial({ color: '#4c3e2c', roughness: 0.88 });
+
+    const branches = [
+      { h: 1.05, dx: -0.18, dz:  0.08, rotY: 0.4, leaves: 6 },
+      { h: 1.28, dx:  0.14, dz: -0.14, rotY: 2.1, leaves: 7 },
+      { h: 1.44, dx: -0.06, dz: -0.18, rotY: 3.7, leaves: 7 },
+      { h: 0.90, dx:  0.20, dz:  0.15, rotY: 5.0, leaves: 5 },
+      { h: 1.16, dx: -0.24, dz: -0.08, rotY: 1.3, leaves: 6 }
+    ];
+    branches.forEach((b, idx) => {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.32, 0),
+        new THREE.Vector3(b.dx * 0.42, 0.32 + b.h * 0.52, b.dz * 0.42),
+        new THREE.Vector3(b.dx, 0.32 + b.h, b.dz)
+      ]);
+      const stem = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.011, 8, false), stemMat);
+      stem.castShadow = true;
+      plantGroup.add(stem);
+
+      for (let l = 0; l < b.leaves; l++) {
+        const t = 0.36 + (l / (b.leaves - 1)) * 0.64;
+        const p = curve.getPoint(t);
+        const leaf = new THREE.Mesh(leafGeo3D, leafMat);
+        leaf.position.copy(p);
+        const sc = 0.65 + (1.0 - Math.abs(t - 0.72)) * 0.38;
+        leaf.scale.setScalar(sc);
+        leaf.rotation.y = b.rotY + l * 2.399 + idx; // ângulo áureo filotáxico natural!
+        leaf.rotation.x = 0.42 + (1.0 - t) * 0.32;
+        leaf.castShadow = true;
+        leaf.receiveShadow = true;
+        plantGroup.add(leaf);
+      }
+    });
+
+    // ---- ESTANTE DE LIVROS E DECORAÇÃO (PAREDE DIREITA) ----
+    const shelfGroup = new THREE.Group();
+    shelfGroup.position.set(3.16, 0, -0.35);
+    scene.add(shelfGroup);
+
+    const shelfW = 0.36, shelfD = 1.46, shelfH = 2.15;
+    for (const sz of [-shelfD / 2, shelfD / 2]) {
+      const sidePanel = new THREE.Mesh(new RoundedBoxGeometry(shelfW, shelfH, 0.036, 2, 0.005), walnutMat);
+      sidePanel.position.set(0, shelfH / 2, sz);
+      sidePanel.castShadow = true;
+      sidePanel.receiveShadow = true;
+      shelfGroup.add(sidePanel);
+    }
+    const bookColors = ['#6e3b2e', '#2e4552', '#c8b496', '#4a5844', '#8e6243', '#363945', '#b88b5a'];
+    for (let s = 0; s < 5; s++) {
+      const sy = 0.14 + s * 0.48;
+      const plank = new THREE.Mesh(new RoundedBoxGeometry(shelfW, 0.032, shelfD, 2, 0.004), walnutMat);
+      plank.position.set(0, sy, 0);
+      plank.castShadow = true;
+      plank.receiveShadow = true;
+      shelfGroup.add(plank);
+
+      if (s < 4) {
+        let cursorZ = -shelfD / 2 + 0.14;
+        for (let b = 0; b < 8; b++) {
+          const bh = 0.21 + hash2(s * 13 + b, 5.2) * 0.09;
+          const bt = 0.032 + hash2(b, s * 7.1) * 0.022;
+          const bMat = new THREE.MeshStandardMaterial({
+            color: bookColors[(s * 3 + b) % bookColors.length],
+            roughness: 0.78
+          });
+          const book = new THREE.Mesh(new RoundedBoxGeometry(0.20, bh, bt, 2, 0.003), bMat);
+          book.position.set(-0.02, sy + 0.016 + bh / 2, cursorZ);
+          book.castShadow = true;
+          shelfGroup.add(book);
+          cursorZ += bt + 0.008;
+        }
+        if (s === 1 || s === 2) {
+          const vase = new THREE.Mesh(
+            new THREE.LatheGeometry(vasePts, 24),
+            s === 1 ? ceramicMat : potMat
+          );
+          vase.scale.setScalar(0.75);
+          vase.position.set(-0.02, sy + 0.016, 0.44);
+          vase.castShadow = true;
+          shelfGroup.add(vase);
+        }
+      }
+    }
+
+    // ---- QUADROS EMOLDURADOS NAS PAREDES (INCLUINDO PAREDE ESQUERDA VISÍVEL NO OVERVIEW!) ----
+    function createFramedArt(variant, w, h) {
+      const g = new THREE.Group();
+      const frame = new THREE.Mesh(new RoundedBoxGeometry(w + 0.065, h + 0.065, 0.038, 2, 0.005), darkWoodMat);
+      frame.castShadow = true;
+      g.add(frame);
+      const canvasMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, h),
+        new THREE.MeshStandardMaterial({ map: createArtworkTexture(variant), roughness: 0.68 })
+      );
+      canvasMesh.position.z = 0.020;
+      g.add(canvasMesh);
+      // Vidro antirreflexo muito sutil sobre a gravura
+      const artGlass = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, h),
+        new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.12, transparent: true, opacity: 0.05 })
+      );
+      artGlass.position.z = 0.022;
+      g.add(artGlass);
+      return g;
+    }
+
+    const artBed = createFramedArt(0, 0.74, 0.94);
+    artBed.position.set(xWest + 0.022, 1.86, 0.75);
+    artBed.rotation.y = Math.PI / 2;
+    scene.add(artBed);
+
+    const artLeftConsole = createFramedArt(2, 0.64, 0.84);
+    artLeftConsole.position.set(xWest + 0.022, 1.72, -1.78);
+    artLeftConsole.rotation.y = Math.PI / 2;
+    scene.add(artLeftConsole);
+
+    const artEast = createFramedArt(1, 0.62, 0.80);
+    artEast.position.set(xEast - 0.022, 1.78, -1.75);
+    artEast.rotation.y = -Math.PI / 2;
+    scene.add(artEast);
+
+    // ---- POLTRONA DE LEITURA ESTOFADA ARREDONDADA (FUNDO DIREITO) ----
+    const loungeGroup = new THREE.Group();
+    loungeGroup.position.set(2.10, 0, 1.78);
+    loungeGroup.rotation.y = -2.35;
+    const lAO = createContactShadow(0.52, 0.50, 0.48);
+    lAO.position.y = 0.002;
+    loungeGroup.add(lAO);
+    const lSeat = new THREE.Mesh(new RoundedBoxGeometry(0.76, 0.19, 0.74, 4, 0.045), oliveFabricMat);
+    lSeat.position.y = 0.36;
+    lSeat.castShadow = true;
+    lSeat.receiveShadow = true;
+    loungeGroup.add(lSeat);
+    const lBack = new THREE.Mesh(new RoundedBoxGeometry(0.76, 0.56, 0.17, 4, 0.045), oliveFabricMat);
+    lBack.position.set(0, 0.68, -0.30);
+    lBack.rotation.x = -0.18;
+    lBack.castShadow = true;
+    loungeGroup.add(lBack);
+    for (const sx of [-0.36, 0.36]) {
+      const arm = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.68, 4, 0.036), oliveFabricMat);
+      arm.position.set(sx, 0.52, -0.02);
+      arm.castShadow = true;
+      loungeGroup.add(arm);
+    }
+    for (const sx of [-0.30, 0.30]) {
+      for (const sz of [-0.28, 0.28]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.015, 0.28, 12), walnutMat);
+        leg.position.set(sx, 0.14, sz);
+        loungeGroup.add(leg);
+      }
+    }
+    scene.add(loungeGroup);
+
+    // =========================================================================
+    // 13. FEIXES DE LUZ SOLAR SUTIS + MICRO-POEIRA DOURADA
+    // =========================================================================
+    const sunbeamMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uColor: { value: new THREE.Color('#ffbe78') },
+        uOpacity: { value: 0.034 }
+      },
+      vertexShader: /* glsl */`
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        void main() {
+          float edgeX = smoothstep(0.0, 0.32, vUv.x) * smoothstep(1.0, 0.68, vUv.x);
+          float fadeLen = smoothstep(0.0, 0.16, vUv.y) * smoothstep(1.0, 0.08, vUv.y);
+          gl_FragColor = vec4(uColor, edgeX * fadeLen * uOpacity);
+        }
+      `
+    });
+
+    const beamGroup = new THREE.Group();
+    const beamOffsets = [
+      { x: -0.95, y: 1.55, w: 1.15, rotY: 0.16 },
+      { x:  0.28, y: 1.52, w: 1.35, rotY: 0.18 }
+    ];
+    for (const bo of beamOffsets) {
+      const bGeo = new THREE.PlaneGeometry(bo.w, 4.2);
+      bGeo.translate(0, -2.1, 0);
+      const bMesh = new THREE.Mesh(bGeo, sunbeamMat);
+      bMesh.position.set(bo.x, bo.y + 0.75, zNorth + 0.02);
+      bMesh.rotation.x = -1.24;
+      bMesh.rotation.z = -0.16;
+      bMesh.rotation.y = bo.rotY;
+      beamGroup.add(bMesh);
+    }
+    scene.add(beamGroup);
+
+    function createSoftDotTexture() {
+      const c = makeCanvas(64, 64);
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0.0, 'rgba(255, 240, 212, 1.0)');
+      g.addColorStop(0.35, 'rgba(255, 224, 180, 0.50)');
+      g.addColorStop(1.0, 'rgba(255, 210, 160, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+
+    const dustCount = 46;
+    const dustPositions = new Float32Array(dustCount * 3);
+    const dustSeeds = new Float32Array(dustCount);
+    for (let i = 0; i < dustCount; i++) {
+      dustPositions[i * 3]     = -1.55 + Math.random() * 2.95;
+      dustPositions[i * 3 + 1] = 0.76 + Math.random() * 1.72;
+      dustPositions[i * 3 + 2] = -3.02 + Math.random() * 1.65;
+      dustSeeds[i] = Math.random() * Math.PI * 2;
+    }
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dustMat = new THREE.PointsMaterial({
+      color: '#ffdfb4',
+      map: createSoftDotTexture(),
+      size: 0.017,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const dustPoints = new THREE.Points(dustGeo, dustMat);
+    scene.add(dustPoints);
+
+    // =========================================================================
+    // 14. ILUMINAÇÃO FÍSICA (RECTAREALIGHT NA JANELA + SOL + ABAJURES CALIBRADOS)
+    // =========================================================================
+    // Sol direcional entrando pela janela panorâmica com sombras macias 2048x2048
+    const sunLight = new THREE.DirectionalLight('#ffab64', 2.90);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.camera.near = 1.0;
+    sunLight.shadow.camera.far = 24.0;
+    sunLight.shadow.camera.left = -4.2;
+    sunLight.shadow.camera.right = 4.2;
+    sunLight.shadow.camera.top = 3.8;
+    sunLight.shadow.camera.bottom = -1.5;
+    sunLight.shadow.bias = -0.0004;
+    sunLight.shadow.normalBias = 0.022;
+    sunLight.target.position.set(0.32, 0.72, -0.82);
+    scene.add(sunLight);
+    scene.add(sunLight.target);
+
+    // RectAreaLight real no vão da janela (posicionado suavemente no lado externo para não estourar o peitoril!)
+    const windowAreaLight = new THREE.RectAreaLight('#ffb478', 2.2, winW * 0.90, winH * 0.85);
+    windowAreaLight.position.set(0, winBottom + winH * 0.54, zNorth - 0.18);
+    windowAreaLight.lookAt(0, 1.15, 1.8);
+    scene.add(windowAreaLight);
+
+    // Preenchimento hemisférico natural (céu azul-lavanda no alto + madeira quente no piso)
+    const hemiLight = new THREE.HemisphereLight('#7f94ba', '#5d402a', 0.58);
+    scene.add(hemiLight);
+
+    // Bounce suave no vão da janela para iluminar silhueta e sombras próximas
+    const windowBounce = new THREE.PointLight('#ffba7e', 1.45, 7.5, 1.7);
+    windowBounce.position.set(-0.2, 1.80, -2.75);
+    scene.add(windowBounce);
+
+    // Abajur quente sobre a mesa do café (calibrado para NÃO estourar branco na mesa!)
+    const tableLampLight = new THREE.PointLight('#ff9e4a', 1.35, 4.4, 2.0);
+    tableLampLight.position.set(0.64 + 0.28, tableSurfaceY + 0.28, -1.04 + 0.09);
+    tableLampLight.castShadow = true;
+    tableLampLight.shadow.mapSize.set(512, 512);
+    tableLampLight.shadow.bias = -0.001;
+    scene.add(tableLampLight);
+
+    // Abajur de cabeceira junto à cama
+    const bedLampLight = new THREE.PointLight('#ff9a46', 2.05, 6.0, 1.8);
+    bedLampLight.position.set(-2.96, 0.84, -0.42);
+    scene.add(bedLampLight);
+
+    // Luz suave indireta no fundo do quarto
+    const backFill = new THREE.PointLight('#d9a882', 0.52, 7.2, 2.0);
+    backFill.position.set(0.7, 2.55, 1.85);
+    scene.add(backFill);
+
+    // PMREM Environment Map procedural do céu do entardecer para reflexos PBR naturais
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    function updateEnvironmentMap() {
+      const envScene = new THREE.Scene();
+      const envSky = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 16), skyMat);
+      envScene.add(envSky);
+      const envRT = pmremGenerator.fromScene(envScene, 0.04);
+      if (scene.environment) scene.environment.dispose();
+      scene.environment = envRT.texture;
+      scene.environmentIntensity = 0.36;
+    }
+
+    function applySunsetMood(sliderValue) {
+      const t = sliderValue / 100;
+      sunState.elevationDeg = THREE.MathUtils.lerp(2.0, 14.0, t);
+      sunState.dir.copy(computeSunDir(sunState.elevationDeg, sunState.azimuthDeg));
+
+      // Paleta fotográfica de golden hour / crepúsculo (mais contraste azul x dourado!)
+      const zenith  = new THREE.Color('#0f1a36').lerp(new THREE.Color('#1f4276'), t);
+      const midSky  = new THREE.Color('#5a3958').lerp(new THREE.Color('#9c7784'), t);
+      const horizon = new THREE.Color('#df6a3f').lerp(new THREE.Color('#f0b177'), t);
+      const sunCol  = new THREE.Color('#ff8142').lerp(new THREE.Color('#ffd094'), t);
+
+      skyUniforms.uSunDir.value.copy(sunState.dir);
+      skyUniforms.uZenithColor.value.copy(zenith);
+      skyUniforms.uMidSkyColor.value.copy(midSky);
+      skyUniforms.uHorizonColor.value.copy(horizon);
+
+      oceanUniforms.uSunDir.value.copy(sunState.dir);
+      oceanUniforms.uHorizonColor.value.copy(horizon);
+      oceanUniforms.uMidSkyColor.value.copy(midSky);
+      oceanUniforms.uSunColor.value.copy(sunCol);
+      oceanUniforms.uSkyColor.value.copy(zenith).lerp(midSky, 0.35);
+
+      mountainUniforms.uSunDir.value.copy(sunState.dir);
+      mountainUniforms.uSunColor.value.copy(sunCol);
+      mountainUniforms.uHorizonColor.value.copy(horizon);
+
+      sunLight.position.copy(sunState.dir).multiplyScalar(12.0).add(new THREE.Vector3(0, 0.8, -1.6));
+      sunLight.color.copy(sunCol);
+      sunLight.intensity = THREE.MathUtils.lerp(1.90, 3.35, t);
+
+      windowAreaLight.color.copy(horizon).lerp(sunCol, 0.35);
+      windowAreaLight.intensity = THREE.MathUtils.lerp(1.55, 2.75, t);
+
+      windowBounce.color.copy(horizon);
+      windowBounce.intensity = THREE.MathUtils.lerp(1.10, 1.85, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.44, 0.70, t);
+
+      const lampBoost = THREE.MathUtils.lerp(1.28, 0.76, t);
+      tableLampLight.intensity = 1.35 * lampBoost;
+      bedLampLight.intensity = 2.05 * lampBoost;
+      shadeUniforms.uGlow.value = 1.02 * lampBoost;
+
+      curtainUniforms.uBacklitColor.value.copy(sunCol);
+      curtainUniforms.uBacklitStrength.value = THREE.MathUtils.lerp(0.32, 0.50, t);
+
+      sunbeamMat.uniforms.uColor.value.copy(sunCol);
+      sunbeamMat.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.022, 0.042, t);
+      steamUniforms.uTint.value.copy(new THREE.Color('#ffead2').lerp(sunCol, 0.25));
+    }
+
+    applySunsetMood(44);
+    updateEnvironmentMap();
+
+    // =========================================================================
+    // 15. PRESETS SUAVES DE CÂMERA E INTERAÇÃO
+    // =========================================================================
+    const CAMERA_PRESETS = {
+      overview: {
+        pos: new THREE.Vector3(1.24, 1.42, 1.18),
+        target: new THREE.Vector3(-0.28, 1.14, -2.18)
+      },
+      girl: {
+        pos: new THREE.Vector3(0.52, 1.42, -2.78),
+        target: new THREE.Vector3(-0.62, 1.30, -3.22)
+      },
+      coffee: {
+        pos: new THREE.Vector3(0.86, 1.01, -0.28),
+        target: new THREE.Vector3(0.36, 0.85, -1.16)
+      },
+      window: {
+        pos: new THREE.Vector3(-0.08, 1.54, -1.44),
+        target: new THREE.Vector3(-0.46, 1.36, -5.20)
+      },
+      room: {
+        pos: new THREE.Vector3(2.32, 1.70, 2.42),
+        target: new THREE.Vector3(-0.56, 1.14, -1.58)
+      }
+    };
+
+    let camTransition = null;
+    function goToPreset(name, instant = false) {
+      const p = CAMERA_PRESETS[name];
+      if (!p) return;
+      document.querySelectorAll('.cam-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.cam === name);
+      });
+      if (instant) {
+        camera.position.copy(p.pos);
+        controls.target.copy(p.target);
+        controls.update();
+        camTransition = null;
+        return;
+      }
+      camTransition = {
+        startPos: camera.position.clone(),
+        endPos: p.pos.clone(),
+        startTarget: controls.target.clone(),
+        endTarget: p.target.clone(),
+        progress: 0,
+        duration: 1.15
+      };
+    }
+
+    controls.addEventListener('start', () => { camTransition = null; });
+    document.querySelectorAll('.cam-btn').forEach(btn => {
+      btn.addEventListener('click', () => goToPreset(btn.dataset.cam));
+    });
+
+    let isPaused = false;
+    const btnPause = document.getElementById('btn-pause');
+    btnPause.addEventListener('click', () => {
+      isPaused = !isPaused;
+      btnPause.textContent = isPaused ? 'Retomar' : 'Pausar';
+    });
+
+    const btnUi = document.getElementById('btn-ui');
+    btnUi.addEventListener('click', () => {
+      const hidden = document.body.classList.toggle('ui-hidden');
+      btnUi.textContent = hidden ? 'Mostrar controles' : 'Limpar tela';
+    });
+
+    const sunSlider = document.getElementById('sun-slider');
+    let envTimer = null;
+    sunSlider.addEventListener('input', (e) => {
+      applySunsetMood(Number(e.target.value));
+      clearTimeout(envTimer);
+      envTimer = setTimeout(updateEnvironmentMap, 120);
+    });
+
+    window.__setCamera = (name) => goToPreset(name, true);
+    window.__setCameraPos = (px, py, pz, tx, ty, tz) => {
+      camera.position.set(px, py, pz);
+      controls.target.set(tx, ty, tz);
+      controls.update();
+      camTransition = null;
+    };
+    window.__setSunset = (v) => {
+      sunSlider.value = String(v);
+      applySunsetMood(v);
+      updateEnvironmentMap();
+    };
+    window.__hideUI = (hide) => {
+      document.body.classList.toggle('ui-hidden', Boolean(hide));
+    };
+
+    function clampCameraInsideRoom() {
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, xWest + 0.25, xEast - 0.25);
+      camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.28, H - 0.22);
+      // Permite a câmera chegar até a varanda/janela (zNorth - 0.45) para girar 360° completos ao redor dela!
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, zNorth - 0.45, zSouth - 0.28);
+    }
+
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      composer.setSize(w, h);
+      bloomPass.setSize(Math.floor(w * 0.5), Math.floor(h * 0.5));
+    });
+
+    // =========================================================================
+    // 16. LOOP DE ANIMAÇÃO (BRISA, MAR, VAPOR, NUVENS, RESPIRAÇÃO)
+    // =========================================================================
+    let simTime = 0;
+    let lastTime = performance.now();
+
+    let perfFrames = 0, perfTime = -3;
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      if (!isPaused) {
+        simTime += dt;
+        skyUniforms.uTime.value = simTime;
+        oceanUniforms.uTime.value = simTime;
+        steamUniforms.uTime.value = simTime;
+        filmPass.uniforms.uTime.value = simTime;
+
+        // Brisa suave nas cortinas
+        for (const c of animatedCurtains) {
+          const pos = c.geo.attributes.position;
+          const base = c.basePositions;
+          for (let i = 0; i < pos.count; i++) {
+            const bx = base[i * 3];
+            const by = base[i * 3 + 1];
+            const bz = base[i * 3 + 2];
+            const v = 1.0 - ((by / c.height) + 0.5);
+            const sway = v * v;
+            const waveZ = (Math.sin(simTime * 1.12 + bx * 2.2 + by * 1.3 + c.side) * 0.048 +
+                           Math.cos(simTime * 0.68 + by * 1.9) * 0.022) * sway;
+            const waveX = Math.sin(simTime * 0.82 + by * 1.6) * 0.018 * sway;
+            pos.setXYZ(i, bx + waveX, by, bz + waveZ + sway * 0.042);
+          }
+          pos.needsUpdate = true;
+        }
+
+        // Respiração sutil e movimento contemplativo da personagem NPC
+        updateNpcAnimation(simTime);
+
+        // Micro-poeira flutuando lentamente no feixe de luz
+        const dPos = dustGeo.attributes.position;
+        for (let i = 0; i < dustCount; i++) {
+          const s = dustSeeds[i];
+          const py = dPos.getY(i) + Math.sin(simTime * 0.4 + s) * 0.00045;
+          const px = dPos.getX(i) + Math.cos(simTime * 0.35 + s) * 0.00035;
+          dPos.setXY(i, px, py);
+        }
+        dPos.needsUpdate = true;
+      }
+
+      if (camTransition) {
+        camTransition.progress = Math.min(1, camTransition.progress + dt / camTransition.duration);
+        const k = camTransition.progress;
+        const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        camera.position.lerpVectors(camTransition.startPos, camTransition.endPos, ease);
+        controls.target.lerpVectors(camTransition.startTarget, camTransition.endTarget, ease);
+        if (camTransition.progress >= 1) camTransition = null;
+      }
+
+      controls.update();
+      clampCameraInsideRoom();
+      composer.render();
+      // medidor de fluidez: a cada ~2 s, se ficou abaixo de 30 quadros/s, baixa a resolução um degrau
+      perfFrames++; perfTime += dt;
+      if (perfTime > 2) {
+        const fps = perfFrames / perfTime;
+        perfFrames = 0; perfTime = 0;
+        if (false) {   // 20/11: tirado o modo leve (deixava pixelado)
+          curRatio = Math.max(0.6, curRatio - 0.2);
+          renderer.setPixelRatio(curRatio);
+          composer.setPixelRatio(curRatio);
+          composer.setSize(window.innerWidth, window.innerHeight);
+          if (curRatio <= 0.8) renderer.shadowMap.type = THREE.PCFShadowMap;
+        }
+      }
+    }
+
+    const readyTimeout = new Promise((r) => setTimeout(r, 7000));
+    Promise.race([npcLoadPromise, readyTimeout]).then(() => {
+      const urlCam = new URLSearchParams(window.location.search).get('cam');
+      if (urlCam && CAMERA_PRESETS[urlCam]) goToPreset(urlCam, true);
+      requestAnimationFrame((t) => {
+        animate(t);
+        document.getElementById('loader').classList.add('hidden');
+        window.__npcLoaded = npcRig.loaded;
+        window.__npc = npcRig;
+        window.__dbg = { THREE, scene, camera };
+        window.__person = personGroup;
+        window.__ready = true;
+      });
+    });
+  </script>
+</body>
+</html>
